@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Baby Name Pairwise</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero">
+        <p class="eyebrow">Pairwise baby name ranking</p>
+        <h1>Shared name pool, separate rankings, one URL per person.</h1>
+        <p class="hero-copy">
+          Add names once, compare as many times as you want, and open <code>/troy</code>, <code>/grandma</code>,
+          or <code>/paula</code> to rank names for each person.
+        </p>
+      </section>
+
+      <section class="panel matchup-panel">
+        <div class="panel-header">
+          <div>
+            <p class="section-label">Compare</p>
+            <h2>Choose a winner for <span id="active-user-inline">/troy</span></h2>
+          </div>
+        </div>
+
+        <div id="matchup-state" class="matchup-state">
+          <p>Loading names.</p>
+        </div>
+
+        <div id="matchup" class="matchup hidden">
+          <button id="choice-left" class="choice-card" type="button"></button>
+          <div class="versus">
+            <span>vs</span>
+            <button id="skip-pair" class="ghost-button small" type="button">Skip pair</button>
+          </div>
+          <button id="choice-right" class="choice-card" type="button"></button>
+        </div>
+
+        <div class="meta-row">
+          <p id="comparison-count" class="muted">0 comparisons recorded</p>
+        </div>
+      </section>
+
+      <section class="panel personal-rankings-panel">
+        <div class="panel-header">
+          <div>
+            <p class="section-label">Your Rankings</p>
+            <h2>Current order for <span id="personal-ranking-user">/troy</span></h2>
+          </div>
+          <span id="personal-ranking-summary" class="pill">0 picks</span>
+        </div>
+        <ol id="personal-ranking-list" class="ranking-list personal-ranking-list"></ol>
+      </section>
+
+      <section class="panel controls-panel">
+        <div class="panel-header">
+          <div>
+            <p class="section-label">Current user</p>
+            <h2 id="current-user-heading">/troy</h2>
+          </div>
+          <span id="current-user-pill" class="pill">Loading</span>
+        </div>
+
+        <form id="user-form" class="inline-form">
+          <label class="field inline-field">
+            <span>Create or jump to a user URL</span>
+            <input id="user-slug" name="userSlug" type="text" maxlength="40" placeholder="grandma" />
+          </label>
+          <button class="solid-button" type="submit">Open user</button>
+        </form>
+
+        <div class="name-bank">
+          <div class="panel-header compact">
+            <div>
+              <p class="section-label">People</p>
+              <h3>Known user URLs</h3>
+            </div>
+          </div>
+          <ul id="user-list" class="tag-list"></ul>
+        </div>
+
+        <form id="bulk-add-form" class="stack-form">
+          <label class="field">
+            <span>Paste names, one per line</span>
+            <textarea id="bulk-names" name="bulkNames" rows="6" placeholder="Hazel&#10;Iris&#10;Arthur"></textarea>
+          </label>
+          <button class="solid-button" type="submit">Add pasted names</button>
+        </form>
+
+        <form id="single-add-form" class="inline-form">
+          <label class="field inline-field">
+            <span>Add one new name</span>
+            <input id="single-name" name="singleName" type="text" maxlength="80" />
+          </label>
+          <button class="solid-button" type="submit">Add</button>
+        </form>
+
+        <div class="name-bank">
+          <div class="panel-header compact">
+            <div>
+              <p class="section-label">Current pool</p>
+              <h3>Names in rotation</h3>
+            </div>
+            <span id="name-count" class="pill">0 names</span>
+          </div>
+          <ul id="name-list" class="tag-list"></ul>
+        </div>
+
+        <div class="action-row subdued-action-row">
+          <a class="ghost-button nav-link subtle-link" href="/results">View rankings page</a>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
