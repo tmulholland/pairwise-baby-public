@@ -1,0 +1,17 @@
+{
+  "name": "pairwise-baby",
+  "version": "1.0.0",
+  "description": "Pairwise baby-name ranking app with a SQLite backend.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "better-sqlite3": "^12.8.0",
+    "express": "^5.2.1"
+  }
+}
