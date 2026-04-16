@@ -1,7 +1,7 @@
 {
-  "name": "pairwise-baby",
+  "name": "pairwise-baby-public",
   "version": "1.0.0",
-  "description": "Pairwise baby-name ranking app with a SQLite backend.",
+  "description": "Public baby-shower pairwise game with a SQLite backend.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

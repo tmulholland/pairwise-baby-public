@@ -1,11 +1,11 @@
-# Baby Name Pairwise
+# Pairwise Baby Public
 
-A small web app for ranking baby names with pairwise comparisons, backed by SQLite.
+A public baby-shower game built from the original family-only pairwise baby-name app.
 
 ## What It Does
 
 - Stores a shared pool of candidate names.
-- Uses URL-based users such as `/troy`, `/grandma`, and `/paula`.
+- Uses URL-based players such as `/guest`, `/team-a`, and `/team-b`.
 - Tracks separate pairwise-comparison histories and Elo-style rankings for each user.
 - Shows each person their own ranking on their personal page.
 - Keeps cross-user standings on a separate `/results` page so they do not bias the main comparison flow.
@@ -24,11 +24,11 @@ A small web app for ranking baby names with pairwise comparisons, backed by SQLi
 2. Start the app:
    `npm start`
 3. Open:
-   `http://localhost:3000/troy`
+   `http://localhost:3000/guest`
 
 ## Routes
 
-- `/troy` or `/:userSlug`: comparison page for one user
+- `/guest` or `/:userSlug`: comparison page for one player
 - `/results`: rankings across all users
 - `/api/state/:userSlug`: app state for one user
 - `/api/results`: rankings for all users
@@ -46,6 +46,6 @@ Tables:
 
 ## Notes
 
-- Unknown user URLs are created the first time you visit or open them.
+- Unknown player URLs are created the first time you visit or open them.
 - The database file is intentionally ignored by git.
 - The app can be exposed publicly with a tunnel such as ngrok.
