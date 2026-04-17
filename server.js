@@ -26,11 +26,11 @@ app.use(express.json());
 app.use('/static', express.static(__dirname, { index: false }));
 
 app.get('/', (_req, res) => {
-  res.redirect('/start');
+  res.sendFile(path.join(__dirname, 'start.html'));
 });
 
 app.get('/start', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'start.html'));
+  res.redirect('/');
 });
 
 app.get('/results', (_req, res) => {

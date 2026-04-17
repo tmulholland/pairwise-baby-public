@@ -3,12 +3,9 @@ const LAST_ACTIVE_USER_KEY = 'baby-name-last-active-user';
 const PRIORITIZE_FEWER_KEY = 'baby-name-prioritize-fewer-comparisons';
 const SUMMARY_POLL_DELAY_MS = 3000;
 const elements = {
-  userForm: document.querySelector('#user-form'),
-  userSlug: document.querySelector('#user-slug'),
   currentUserHeading: document.querySelector('#current-user-heading'),
   currentUserPill: document.querySelector('#current-user-pill'),
   activeUserInline: document.querySelector('#active-user-inline'),
-  userList: document.querySelector('#user-list'),
   bulkAddForm: document.querySelector('#bulk-add-form'),
   bulkNames: document.querySelector('#bulk-names'),
   singleAddForm: document.querySelector('#single-add-form'),
@@ -52,7 +49,6 @@ bindEvents();
 loadState();
 
 function bindEvents() {
-  elements.userForm.addEventListener('submit', handleUserSubmit);
   elements.bulkAddForm.addEventListener('submit', handleBulkAdd);
   elements.singleAddForm.addEventListener('submit', handleSingleAdd);
   elements.choiceLeft.addEventListener('click', () => submitComparison(currentPair ? currentPair.leftId : null));
@@ -66,7 +62,7 @@ function bindEvents() {
   elements.manualRightSelect.addEventListener('change', handleManualCompareChange);
   elements.manualCompareReset.addEventListener('click', resetManualCompare);
   elements.confirmUserYes.addEventListener('click', confirmActiveUser);
-  elements.confirmUserNo.addEventListener('click', chooseAnotherUser);
+  elements.confirmUserNo.addEventListener('click', startOver);
 }
 
 async function loadState() {
@@ -80,25 +76,6 @@ async function loadState() {
     showError(error.message);
   } finally {
     setLoading(false);
-  }
-}
-
-async function handleUserSubmit(event) {
-  event.preventDefault();
-  const slug = normalizeSlug(elements.userSlug.value);
-
-  if (!slug) {
-    return;
-  }
-
-  try {
-    const payload = await apiFetchJson('/api/users', {
-      method: 'POST',
-      body: JSON.stringify({ slug }),
-    });
-    window.location.href = `/${payload.user.slug}`;
-  } catch (error) {
-    showError(error.message);
   }
 }
 
@@ -225,7 +202,6 @@ function applyState(payload) {
 
 function render() {
   renderHeader();
-  renderUsers();
   renderNames();
   renderManualCompareControls();
   renderMatchup();
@@ -240,20 +216,6 @@ function renderHeader() {
   elements.activeUserInline.textContent = label;
   elements.personalRankingUser.textContent = label;
   elements.prioritizeFewerToggle.checked = state.prioritizeFewerComparisons;
-}
-
-function renderUsers() {
-  elements.userList.innerHTML = '';
-
-  for (const user of state.users) {
-    const item = document.createElement('li');
-    const link = document.createElement('a');
-    link.href = `/${user.slug}`;
-    link.textContent = `/${user.slug}`;
-    link.className = user.slug === state.activeUser ? 'user-link active' : 'user-link';
-    item.append(link);
-    elements.userList.append(item);
-  }
 }
 
 function renderNames() {
@@ -438,11 +400,8 @@ function confirmActiveUser() {
   renderUserConfirmation();
 }
 
-function chooseAnotherUser() {
-  elements.confirmOverlay.classList.add('hidden');
-  elements.userSlug.value = '';
-  elements.userSlug.focus();
-  elements.userForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+function startOver() {
+  window.location.href = '/';
 }
 
 function getUserConfirmKey(slug) {
@@ -669,7 +628,7 @@ function getUserSlugFromPath() {
   const slug = normalizeSlug(window.location.pathname.replace(/^\/+/, ''));
 
   if (!slug) {
-    window.location.href = '/start';
+    window.location.href = '/';
   }
 
   return slug || 'guest';

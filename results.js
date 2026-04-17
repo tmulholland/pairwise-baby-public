@@ -102,7 +102,7 @@ function setStatus(message) {
 
 function initializePage() {
   const activeUser = getLastActiveUser();
-  elements.backToComparingLink.href = activeUser ? `/${activeUser}` : '/start';
+  elements.backToComparingLink.href = activeUser ? `/${activeUser}` : '/';
 }
 
 function getLastActiveUser() {

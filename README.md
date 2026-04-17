@@ -28,7 +28,8 @@ A public baby-shower game built from the original family-only pairwise baby-name
 
 ## Routes
 
-- `/start`: asks for the player's name and sends them to their page
+- `/`: asks for the player's name and sends them to their page
+- `/start`: redirects to `/`
 - `/guest` or `/:userSlug`: comparison page for one player
 - `/results`: rankings across all users
 - `/api/state/:userSlug`: app state for one user
