@@ -496,29 +496,14 @@ function findNameById(nameId) {
 function renderChoiceCardContent(entry) {
   const summary = getChoiceSummary(entry);
   const popularity = getPopularityParts(entry);
-  const metadata = getOriginMetadata(entry);
   const popularityMarkup = popularity
     ? `<span class="choice-popularity"><strong class="choice-popularity-rank">Boys popularity ${escapeHtml(popularity.rank)}</strong></span>`
     : '';
-  const metadataInner = metadata.length
-    ? metadata.map((item) => `
-        <div class="choice-meta-row">
-          <span class="choice-meta-label">${escapeHtml(item.label)}</span>
-          <span class="choice-meta-value">${escapeHtml(item.value)}</span>
-        </div>
-      `).join('')
-    : `
-        <div class="choice-meta-row">
-          <span class="choice-meta-label">Origin</span>
-          <span class="choice-meta-value">Loading</span>
-        </div>
-      `;
 
   return `
     <span class="choice-name">${escapeHtml(entry.name)}</span>
     <span class="choice-blurb">${escapeHtml(summary)}</span>
     ${popularityMarkup}
-    <span class="choice-meta-box">${metadataInner}</span>
   `;
 }
 
@@ -548,15 +533,6 @@ function getPopularityParts(entry) {
   }
 
   return null;
-}
-
-function getOriginMetadata(entry) {
-  const loadingValue = entry.btnStatus === 'pending' ? 'Loading' : 'Not found';
-
-  return [
-    { label: 'Origin', value: entry.btnOrigin || loadingValue },
-    { label: 'Usage', value: entry.btnUsage || loadingValue },
-  ];
 }
 
 function handlePrioritizeFewerToggle() {
