@@ -102,12 +102,12 @@ function setStatus(message) {
 
 function initializePage() {
   const activeUser = getLastActiveUser();
-  elements.backToComparingLink.href = `/${activeUser}`;
+  elements.backToComparingLink.href = activeUser ? `/${activeUser}` : '/start';
 }
 
 function getLastActiveUser() {
   const saved = normalizeSlug(window.localStorage.getItem(LAST_ACTIVE_USER_KEY));
-  return saved || 'troy';
+  return saved;
 }
 
 function normalizeSlug(value) {

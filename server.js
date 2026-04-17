@@ -7,7 +7,7 @@ const { ensureNameBtnColumns, initializeBtnMetadata, updateBtnMetadataForNames }
 const PORT = process.env.PORT || 3000;
 const DEFAULT_RATING = 1200;
 const K_FACTOR = 24;
-const DEFAULT_USER = 'troy';
+const DEFAULT_USER = 'guest';
 const SUMMARY_REFRESH_INTERVAL_MS = 1000 * 60 * 60 * 24 * 30;
 const SUMMARY_FETCH_DELAY_MS = 250;
 const app = express();
@@ -26,7 +26,11 @@ app.use(express.json());
 app.use('/static', express.static(__dirname, { index: false }));
 
 app.get('/', (_req, res) => {
-  res.redirect(`/${DEFAULT_USER}`);
+  res.redirect('/start');
+});
+
+app.get('/start', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'start.html'));
 });
 
 app.get('/results', (_req, res) => {

@@ -667,7 +667,12 @@ function clearSummaryPoll() {
 
 function getUserSlugFromPath() {
   const slug = normalizeSlug(window.location.pathname.replace(/^\/+/, ''));
-  return slug || 'troy';
+
+  if (!slug) {
+    window.location.href = '/start';
+  }
+
+  return slug || 'guest';
 }
 
 function normalizeSlug(value) {

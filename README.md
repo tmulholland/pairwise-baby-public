@@ -24,10 +24,11 @@ A public baby-shower game built from the original family-only pairwise baby-name
 2. Start the app:
    `npm start`
 3. Open:
-   `http://localhost:3000/guest`
+   `http://localhost:3000/`
 
 ## Routes
 
+- `/start`: asks for the player's name and sends them to their page
 - `/guest` or `/:userSlug`: comparison page for one player
 - `/results`: rankings across all users
 - `/api/state/:userSlug`: app state for one user

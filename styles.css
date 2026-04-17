@@ -33,10 +33,54 @@ textarea {
   font: inherit;
 }
 
+button:disabled,
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.66;
+}
+
 .app-shell {
   width: min(1120px, calc(100% - 32px));
   margin: 0 auto;
   padding: 40px 0 56px;
+}
+
+.start-shell {
+  min-height: 100vh;
+  width: min(560px, calc(100% - 32px));
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+  padding: 40px 0;
+}
+
+.start-panel {
+  width: 100%;
+  background: var(--paper);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  padding: 28px;
+  box-shadow: var(--shadow);
+}
+
+.start-panel h1 {
+  margin: 0;
+  font-family: "Fraunces", serif;
+  line-height: 1;
+  font-size: clamp(2.4rem, 8vw, 4.4rem);
+}
+
+.start-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.form-error {
+  margin: 0;
+  color: var(--accent-dark);
+  font-weight: 700;
 }
 
 .hero {
