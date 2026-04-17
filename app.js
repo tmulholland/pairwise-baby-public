@@ -497,9 +497,9 @@ function renderChoiceCardContent(entry) {
   const summary = getChoiceSummary(entry);
   const popularity = getPopularityParts(entry);
   const metadata = getOriginMetadata(entry);
-  const popularityInner = popularity
-    ? `<strong class="choice-popularity-rank">Popularity ${escapeHtml(popularity.rank)}</strong>`
-    : '<span class="choice-popularity-detail">SSA boys popularity loading...</span>';
+  const popularityMarkup = popularity
+    ? `<span class="choice-popularity"><strong class="choice-popularity-rank">Boys popularity ${escapeHtml(popularity.rank)}</strong></span>`
+    : '';
   const metadataInner = metadata.length
     ? metadata.map((item) => `
         <div class="choice-meta-row">
@@ -517,7 +517,7 @@ function renderChoiceCardContent(entry) {
   return `
     <span class="choice-name">${escapeHtml(entry.name)}</span>
     <span class="choice-blurb">${escapeHtml(summary)}</span>
-    <span class="choice-popularity">${popularityInner}</span>
+    ${popularityMarkup}
     <span class="choice-meta-box">${metadataInner}</span>
   `;
 }

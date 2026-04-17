@@ -1,14 +1,11 @@
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
-const { execFile } = require('child_process');
-const { promisify } = require('util');
+const zlib = require('zlib');
 
-const execFileAsync = promisify(execFile);
-const SSA_LIMITS_URL = 'https://www.ssa.gov/oact/babynames/limits.html';
 const SSA_ZIP_URL = 'https://www.ssa.gov/oact/babynames/names.zip';
 const CACHE_DIR = path.join(__dirname, '.cache');
 const CACHE_PATH = path.join(CACHE_DIR, 'ssa-popularity-boys.json');
+const MIN_SSA_YEAR = 2024;
 
 let cachedYear = null;
 let cachedPopularityByName = null;
@@ -41,7 +38,11 @@ function ensureNamePopularityColumns(db) {
 }
 
 async function initializeSsaPopularity(db) {
-  return refreshSsaPopularityCache(db);
+  try {
+    await refreshSsaPopularityCache(db);
+  } catch (error) {
+    console.error('Unable to initialize SSA popularity cache:', error);
+  }
 }
 
 function updateSsaPopularityForNames(db, names) {
@@ -58,9 +59,8 @@ async function refreshSsaPopularityCache(db) {
   }
 
   refreshPromise = (async () => {
-    const latestYear = await fetchLatestFullYear();
-    const cached = readCache(latestYear);
-    const dataset = cached || await downloadPopularityDataset(latestYear);
+    const cached = readCache();
+    const dataset = cached || await downloadPopularityDataset();
 
     cachedYear = dataset.year;
     cachedPopularityByName = new Map(dataset.names.map((entry) => [entry.name.toLowerCase(), entry]));
@@ -105,33 +105,11 @@ function applyPopularityToNames(db, names) {
   transaction(names);
 }
 
-async function fetchLatestFullYear() {
-  const response = await fetch(SSA_LIMITS_URL, {
-    headers: {
-      Accept: 'text/html',
-      'User-Agent': 'pairwise-baby/1.0 (ssa popularity cache)',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`SSA limits request failed with ${response.status}`);
-  }
-
-  const html = await response.text();
-  const matches = [...html.matchAll(/For U\.S\. births in (\d{4})/g)].map((match) => Number(match[1]));
-
-  if (!matches.length) {
-    throw new Error('Unable to determine latest SSA full year.');
-  }
-
-  return Math.max(...matches);
-}
-
-function readCache(expectedYear) {
+function readCache() {
   try {
     const raw = fs.readFileSync(CACHE_PATH, 'utf8');
     const parsed = JSON.parse(raw);
-    if (parsed && parsed.year === expectedYear && Array.isArray(parsed.names)) {
+    if (parsed && Number.isInteger(parsed.year) && parsed.year >= MIN_SSA_YEAR && Array.isArray(parsed.names)) {
       return parsed;
     }
   } catch (_error) {
@@ -146,7 +124,7 @@ function writeCache(dataset) {
   fs.writeFileSync(CACHE_PATH, JSON.stringify(dataset));
 }
 
-async function downloadPopularityDataset(year) {
+async function downloadPopularityDataset() {
   const response = await fetch(SSA_ZIP_URL, {
     headers: {
       Accept: 'application/zip',
@@ -159,24 +137,108 @@ async function downloadPopularityDataset(year) {
   }
 
   const zipBuffer = Buffer.from(await response.arrayBuffer());
-  const zipPath = path.join(os.tmpdir(), `ssa-names-${process.pid}.zip`);
-  fs.writeFileSync(zipPath, zipBuffer);
+  const latestEntry = getLatestYearEntry(zipBuffer);
+  const text = extractZipText(zipBuffer, latestEntry);
 
-  try {
-    const fileName = `yob${year}.txt`;
-    const { stdout } = await execFileAsync('unzip', ['-p', zipPath, fileName], {
-      encoding: 'utf8',
-      maxBuffer: 1024 * 1024 * 12,
-    });
+  if (latestEntry.year < MIN_SSA_YEAR) {
+    throw new Error(`Expected SSA data for ${MIN_SSA_YEAR} or newer, received ${latestEntry.year}`);
+  }
 
-    if (!stdout.trim()) {
-      throw new Error(`No SSA data found for ${year}`);
+  if (!text.trim()) {
+    throw new Error(`No SSA data found for ${latestEntry.year}`);
+  }
+
+  return parsePopularityFile(text, latestEntry.year);
+}
+
+function getLatestYearEntry(zipBuffer) {
+  const entries = readZipEntries(zipBuffer)
+    .map((entry) => {
+      const match = /^yob(\d{4})\.txt$/i.exec(entry.name);
+      return match ? { ...entry, year: Number(match[1]) } : null;
+    })
+    .filter(Boolean)
+    .sort((left, right) => right.year - left.year);
+
+  if (!entries.length) {
+    throw new Error('No yearly SSA name files found in names.zip');
+  }
+
+  return entries[0];
+}
+
+function readZipEntries(zipBuffer) {
+  const endOffset = findEndOfCentralDirectory(zipBuffer);
+  const entryCount = zipBuffer.readUInt16LE(endOffset + 10);
+  const centralDirectoryOffset = zipBuffer.readUInt32LE(endOffset + 16);
+  const entries = [];
+  let offset = centralDirectoryOffset;
+
+  for (let index = 0; index < entryCount; index += 1) {
+    if (zipBuffer.readUInt32LE(offset) !== 0x02014b50) {
+      throw new Error('Invalid ZIP central directory.');
     }
 
-    return parsePopularityFile(stdout, year);
-  } finally {
-    fs.rmSync(zipPath, { force: true });
+    const compressionMethod = zipBuffer.readUInt16LE(offset + 10);
+    const compressedSize = zipBuffer.readUInt32LE(offset + 20);
+    const uncompressedSize = zipBuffer.readUInt32LE(offset + 24);
+    const fileNameLength = zipBuffer.readUInt16LE(offset + 28);
+    const extraLength = zipBuffer.readUInt16LE(offset + 30);
+    const commentLength = zipBuffer.readUInt16LE(offset + 32);
+    const localHeaderOffset = zipBuffer.readUInt32LE(offset + 42);
+    const nameStart = offset + 46;
+    const name = zipBuffer.toString('utf8', nameStart, nameStart + fileNameLength);
+
+    entries.push({
+      name,
+      compressionMethod,
+      compressedSize,
+      uncompressedSize,
+      localHeaderOffset,
+    });
+
+    offset = nameStart + fileNameLength + extraLength + commentLength;
   }
+
+  return entries;
+}
+
+function findEndOfCentralDirectory(zipBuffer) {
+  const minOffset = Math.max(0, zipBuffer.length - 65557);
+
+  for (let offset = zipBuffer.length - 22; offset >= minOffset; offset -= 1) {
+    if (zipBuffer.readUInt32LE(offset) === 0x06054b50) {
+      return offset;
+    }
+  }
+
+  throw new Error('Unable to read SSA ZIP directory.');
+}
+
+function extractZipText(zipBuffer, entry) {
+  if (zipBuffer.readUInt32LE(entry.localHeaderOffset) !== 0x04034b50) {
+    throw new Error(`Invalid ZIP local header for ${entry.name}`);
+  }
+
+  const fileNameLength = zipBuffer.readUInt16LE(entry.localHeaderOffset + 26);
+  const extraLength = zipBuffer.readUInt16LE(entry.localHeaderOffset + 28);
+  const dataStart = entry.localHeaderOffset + 30 + fileNameLength + extraLength;
+  const compressedData = zipBuffer.subarray(dataStart, dataStart + entry.compressedSize);
+  let data;
+
+  if (entry.compressionMethod === 0) {
+    data = compressedData;
+  } else if (entry.compressionMethod === 8) {
+    data = zlib.inflateRawSync(compressedData);
+  } else {
+    throw new Error(`Unsupported ZIP compression method ${entry.compressionMethod} for ${entry.name}`);
+  }
+
+  if (data.length !== entry.uncompressedSize) {
+    throw new Error(`Unexpected uncompressed size for ${entry.name}`);
+  }
+
+  return data.toString('utf8');
 }
 
 function parsePopularityFile(text, year) {

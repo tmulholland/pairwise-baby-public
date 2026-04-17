@@ -683,10 +683,6 @@ code {
   color: var(--ink);
 }
 
-.choice-popularity-detail {
-  opacity: 0.92;
-}
-
 @media (max-width: 800px) {
   .choice-card {
     min-height: 260px;
