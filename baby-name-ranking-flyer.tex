@@ -1,0 +1,70 @@
+\documentclass[12pt]{article}
+
+\usepackage[margin=0.65in]{geometry}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+
+\definecolor{babyBlue}{HTML}{2F80ED}
+\definecolor{babyPink}{HTML}{E94E77}
+\definecolor{sunnyGold}{HTML}{F2B705}
+\definecolor{leafGreen}{HTML}{1C9A76}
+\definecolor{deepInk}{HTML}{24304A}
+
+\begin{document}
+\begin{center}
+\vspace*{0.15in}
+
+\begin{tikzpicture}
+  \node[
+    rounded corners=18pt,
+    fill=babyBlue!9,
+    draw=babyBlue!35,
+    line width=1.2pt,
+    inner xsep=18pt,
+    inner ysep=18pt,
+    text width=0.9\linewidth,
+    align=center
+  ] {
+    {\fontsize{32}{38}\selectfont\sffamily\bfseries\color{babyPink}
+    Please help us name our baby!!!}
+
+    \vspace{0.28in}
+
+    {\fontsize{20}{26}\selectfont\sffamily\bfseries\color{deepInk}
+    Scan the QR code below or visit}
+
+    \vspace{0.08in}
+
+    {\fontsize{25}{31}\selectfont\sffamily\bfseries\color{babyBlue}
+    babymulholland.org}
+
+    \vspace{0.08in}
+
+    {\fontsize{20}{26}\selectfont\sffamily\bfseries\color{deepInk}
+    to start ranking names!}
+  };
+\end{tikzpicture}
+
+\vspace{0.55in}
+
+% baby-name-ranking-qr.pdf was generated from baby-name-ranking-qr.svg.
+% To regenerate it: rsvg-convert -f pdf -o baby-name-ranking-qr.pdf baby-name-ranking-qr.svg
+% If you prefer the PNG fallback, replace the next line with:
+% \includegraphics[width=3.5in]{baby-name-ranking-qr.png}
+\includegraphics[width=3.5in]{baby-name-ranking-qr.pdf}
+
+\vfill
+
+{\fontsize{15}{20}\selectfont\sffamily\bfseries\color{leafGreen}
+Thank you for helping us choose!}
+
+\vspace*{0.1in}
+\end{center}
+\end{document}
