@@ -6,8 +6,6 @@ const elements = {
   currentUserHeading: document.querySelector('#current-user-heading'),
   currentUserPill: document.querySelector('#current-user-pill'),
   activeUserInline: document.querySelector('#active-user-inline'),
-  bulkAddForm: document.querySelector('#bulk-add-form'),
-  bulkNames: document.querySelector('#bulk-names'),
   singleAddForm: document.querySelector('#single-add-form'),
   singleName: document.querySelector('#single-name'),
   matchupState: document.querySelector('#matchup-state'),
@@ -49,7 +47,6 @@ bindEvents();
 loadState();
 
 function bindEvents() {
-  elements.bulkAddForm.addEventListener('submit', handleBulkAdd);
   elements.singleAddForm.addEventListener('submit', handleSingleAdd);
   elements.choiceLeft.addEventListener('click', () => submitComparison(currentPair ? currentPair.leftId : null));
   elements.choiceRight.addEventListener('click', () => submitComparison(currentPair ? currentPair.rightId : null));
@@ -77,18 +74,6 @@ async function loadState() {
   } finally {
     setLoading(false);
   }
-}
-
-async function handleBulkAdd(event) {
-  event.preventDefault();
-  const names = elements.bulkNames.value.split('\n').map(cleanName).filter(Boolean);
-
-  if (!names.length) {
-    return;
-  }
-
-  await addNames(names);
-  elements.bulkNames.value = '';
 }
 
 async function handleSingleAdd(event) {
