@@ -778,14 +778,15 @@ function buildShowtimeState(activeSlug) {
 }
 
 function buildShowtimeCombinedState(rawSelectedUsers) {
-  const users = db.prepare('SELECT id, slug FROM showtime_users ORDER BY slug').all();
-  const names = db.prepare('SELECT id, name FROM showtime_names ORDER BY name COLLATE NOCASE').all();
   const comparisonRows = db.prepare(`
     SELECT user_id, COUNT(*) AS count
     FROM showtime_comparisons
     GROUP BY user_id
   `).all();
   const comparisonCounts = new Map(comparisonRows.map((row) => [row.user_id, row.count]));
+  const users = db.prepare('SELECT id, slug FROM showtime_users ORDER BY slug').all()
+    .filter((user) => (comparisonCounts.get(user.id) || 0) > 0);
+  const names = db.prepare('SELECT id, name FROM showtime_names ORDER BY name COLLATE NOCASE').all();
   const selectedSlugs = resolveSelectedSlugs(rawSelectedUsers, users);
   const selectedUsers = users.filter((user) => selectedSlugs.includes(user.slug));
   const ratingRows = selectedUsers.length
