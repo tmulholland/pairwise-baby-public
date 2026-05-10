@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Baby Name Pairwise Combined Results</title>
+    <title>Showtime Combined Ranking</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -15,25 +15,17 @@
   <body>
     <main class="app-shell">
       <section class="hero">
-        <p class="eyebrow">Combined Results</p>
-        <h1>One ranking, filtered to the people you choose.</h1>
+        <p class="eyebrow">Final shortlist mode</p>
+        <h1>Combined showtime view</h1>
         <p class="hero-copy">
-          Start with everyone included, then click users on or off to see a combined ranking for any subset.
+          Average the isolated shortlist ratings across the people you include here.
         </p>
       </section>
 
-      <section class="panel controls-panel compact-panel">
-        <div class="action-row">
-          <a id="back-to-comparing-link" class="ghost-button nav-link" href="/">Back to comparing</a>
-          <a class="ghost-button nav-link" href="/results">View per-user results</a>
-          <a class="ghost-button nav-link" href="/showtime">Open showtime shortlist</a>
-        </div>
-      </section>
-
-      <section class="panel controls-panel">
-        <div class="panel-header compact">
+      <section class="panel">
+        <div class="panel-header">
           <div>
-            <p class="section-label">Filter Users</p>
+            <p class="section-label">Filter users</p>
             <h2>Include these people in the combined ranking</h2>
           </div>
           <span id="combined-selection-summary" class="pill">Loading</span>
@@ -41,19 +33,23 @@
         <div id="user-filter-tabs" class="tab-row"></div>
       </section>
 
-      <section class="panel rankings-panel">
+      <section class="panel">
         <div class="panel-header">
           <div>
-            <p class="section-label">Combined Ranking</p>
+            <p class="section-label">Combined shortlist</p>
             <h2>Average rating across the selected users</h2>
           </div>
           <span id="combined-status" class="pill">Loading</span>
+        </div>
+        <div class="action-row subdued-action-row">
+          <a id="back-to-comparing-link" class="ghost-button nav-link subtle-link" href="/showtime">Back to showtime</a>
+          <a class="ghost-button nav-link subtle-link" href="/showtime/results">Showtime results</a>
         </div>
         <p id="combined-meta" class="muted meta-row"></p>
         <ol id="combined-ranking-list" class="ranking-list"></ol>
       </section>
     </main>
 
-    <script src="/static/combined.js"></script>
+    <script src="/static/showtime-combined.js"></script>
   </body>
 </html>

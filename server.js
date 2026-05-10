@@ -8,6 +8,7 @@ const PORT = process.env.PORT || 3000;
 const DEFAULT_RATING = 1200;
 const K_FACTOR = 24;
 const DEFAULT_USER = 'guest';
+const SHOWTIME_DEFAULT_USER = 'guest';
 const SUMMARY_REFRESH_INTERVAL_MS = 1000 * 60 * 60 * 24 * 30;
 const SUMMARY_FETCH_DELAY_MS = 250;
 const app = express();
@@ -18,6 +19,7 @@ const queuedSummaryIds = new Set();
 let isRefreshingSummaries = false;
 
 initializeDatabase();
+initializeShowtimeDatabase();
 queueSummaryRefreshForAllNames();
 void initializeSsaPopularity(db);
 void initializeBtnMetadata(db);
@@ -31,6 +33,18 @@ app.get('/', (_req, res) => {
 
 app.get('/start', (_req, res) => {
   res.redirect('/');
+});
+
+app.get('/showtime', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'showtime-start.html'));
+});
+
+app.get('/showtime/results', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'showtime-results.html'));
+});
+
+app.get('/showtime/combined', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'showtime-combined.html'));
 });
 
 app.get('/results', (_req, res) => {
@@ -59,6 +73,24 @@ app.get('/api/combined', (req, res) => {
   }
 });
 
+app.get('/api/showtime/results', (_req, res) => {
+  try {
+    ensureShowtimeRatingsForAllUsers();
+    res.json(buildShowtimeState(SHOWTIME_DEFAULT_USER));
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.get('/api/showtime/combined', (req, res) => {
+  try {
+    ensureShowtimeRatingsForAllUsers();
+    res.json(buildShowtimeCombinedState(req.query.users));
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.get('/api/state/:userSlug', (req, res) => {
   try {
     const user = ensureUser(req.params.userSlug);
@@ -69,10 +101,30 @@ app.get('/api/state/:userSlug', (req, res) => {
   }
 });
 
+app.get('/api/showtime/state/:userSlug', (req, res) => {
+  try {
+    const user = ensureShowtimeUser(req.params.userSlug);
+    ensureShowtimeRatingsForAllUsers();
+    res.json(buildShowtimeState(user.slug));
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.post('/api/users', (req, res) => {
   try {
     const user = ensureUser(req.body.slug);
     ensureRatingsForUser(user.id);
+    res.status(201).json({ user });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/showtime/users', (req, res) => {
+  try {
+    const user = ensureShowtimeUser(req.body.slug);
+    ensureShowtimeRatingsForUser(user.id);
     res.status(201).json({ user });
   } catch (error) {
     handleError(res, error);
@@ -93,11 +145,42 @@ app.post('/api/names', (req, res) => {
   }
 });
 
+app.get('/api/showtime/source-names', (_req, res) => {
+  try {
+    res.json({
+      names: buildShowtimeSourceNames(),
+    });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/showtime/names', (req, res) => {
+  try {
+    const submittedNames = Array.isArray(req.body.names) ? req.body.names : [];
+    addShowtimeNames(submittedNames);
+    ensureShowtimeRatingsForAllUsers();
+    res.status(201).json({ state: buildShowtimeState(normalizeSlug(req.body.userSlug) || SHOWTIME_DEFAULT_USER) });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.delete('/api/names/:nameId', (req, res) => {
   try {
     const activeUserSlug = normalizeSlug(req.query.userSlug) || DEFAULT_USER;
     deleteName(Number(req.params.nameId));
     res.json({ state: buildState(activeUserSlug) });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.delete('/api/showtime/names/:nameId', (req, res) => {
+  try {
+    const activeUserSlug = normalizeSlug(req.query.userSlug) || SHOWTIME_DEFAULT_USER;
+    deleteShowtimeName(Number(req.params.nameId));
+    res.json({ state: buildShowtimeState(activeUserSlug) });
   } catch (error) {
     handleError(res, error);
   }
@@ -119,6 +202,28 @@ app.post('/api/comparisons', (req, res) => {
   } catch (error) {
     handleError(res, error);
   }
+});
+
+app.post('/api/showtime/comparisons', (req, res) => {
+  try {
+    const user = ensureShowtimeUser(req.body.userSlug);
+    const winnerId = Number(req.body.winnerId);
+    const loserId = Number(req.body.loserId);
+
+    if (!Number.isInteger(winnerId) || !Number.isInteger(loserId) || winnerId === loserId) {
+      res.status(400).json({ error: 'A comparison needs two distinct names.' });
+      return;
+    }
+
+    recordShowtimeComparison(user.id, winnerId, loserId);
+    res.status(201).json({ state: buildShowtimeState(user.slug) });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.get('/showtime/:userSlug', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'showtime.html'));
 });
 
 app.get(/^\/api\/.*/, (_req, res) => {
@@ -175,6 +280,57 @@ function initializeDatabase() {
   ensureNamePopularityColumns(db);
   ensureNameBtnColumns(db);
   ensureUser(DEFAULT_USER);
+}
+
+function initializeShowtimeDatabase() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS showtime_users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS showtime_names (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      wiki_summary TEXT,
+      wiki_source_url TEXT,
+      wiki_status TEXT NOT NULL DEFAULT 'pending',
+      wiki_updated_at TEXT,
+      ssa_year INTEGER,
+      ssa_births INTEGER,
+      ssa_rank INTEGER,
+      ssa_updated_at TEXT,
+      btn_usage TEXT,
+      btn_origin TEXT,
+      btn_language_root TEXT,
+      btn_status TEXT NOT NULL DEFAULT 'pending',
+      btn_updated_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS showtime_ratings (
+      user_id INTEGER NOT NULL,
+      name_id INTEGER NOT NULL,
+      rating REAL NOT NULL DEFAULT ${DEFAULT_RATING},
+      PRIMARY KEY (user_id, name_id),
+      FOREIGN KEY (user_id) REFERENCES showtime_users(id) ON DELETE CASCADE,
+      FOREIGN KEY (name_id) REFERENCES showtime_names(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS showtime_comparisons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      winner_name_id INTEGER NOT NULL,
+      loser_name_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES showtime_users(id) ON DELETE CASCADE,
+      FOREIGN KEY (winner_name_id) REFERENCES showtime_names(id) ON DELETE CASCADE,
+      FOREIGN KEY (loser_name_id) REFERENCES showtime_names(id) ON DELETE CASCADE
+    );
+  `);
+
+  ensureShowtimeUser(SHOWTIME_DEFAULT_USER);
 }
 
 function ensureNameSummaryColumns() {
@@ -415,6 +571,309 @@ function buildCombinedState(rawSelectedUsers) {
       names: combinedNames,
     },
   };
+}
+
+function ensureShowtimeUser(rawSlug) {
+  const slug = normalizeSlug(rawSlug);
+
+  if (!slug) {
+    throw new Error('User slug is required.');
+  }
+
+  db.prepare('INSERT OR IGNORE INTO showtime_users (slug) VALUES (?)').run(slug);
+
+  const user = db.prepare('SELECT id, slug FROM showtime_users WHERE slug = ?').get(slug);
+  ensureShowtimeRatingsForUser(user.id);
+  return user;
+}
+
+function ensureShowtimeRatingsForAllUsers() {
+  const users = db.prepare('SELECT id FROM showtime_users').all();
+  for (const user of users) {
+    ensureShowtimeRatingsForUser(user.id);
+  }
+}
+
+function ensureShowtimeRatingsForUser(userId) {
+  db.prepare(`
+    INSERT OR IGNORE INTO showtime_ratings (user_id, name_id, rating)
+    SELECT ?, showtime_names.id, ${DEFAULT_RATING}
+    FROM showtime_names
+  `).run(userId);
+}
+
+function addShowtimeNames(rawNames) {
+  const insertFromSource = db.prepare(`
+    INSERT OR IGNORE INTO showtime_names (
+      name,
+      wiki_summary,
+      wiki_source_url,
+      wiki_status,
+      wiki_updated_at,
+      ssa_year,
+      ssa_births,
+      ssa_rank,
+      ssa_updated_at,
+      btn_usage,
+      btn_origin,
+      btn_language_root,
+      btn_status,
+      btn_updated_at
+    )
+    SELECT
+      names.name,
+      names.wiki_summary,
+      names.wiki_source_url,
+      names.wiki_status,
+      names.wiki_updated_at,
+      names.ssa_year,
+      names.ssa_births,
+      names.ssa_rank,
+      names.ssa_updated_at,
+      names.btn_usage,
+      names.btn_origin,
+      names.btn_language_root,
+      names.btn_status,
+      names.btn_updated_at
+    FROM names
+    WHERE names.name = ? COLLATE NOCASE
+  `);
+  const insertManual = db.prepare(`
+    INSERT OR IGNORE INTO showtime_names (
+      name,
+      wiki_status,
+      btn_status
+    ) VALUES (?, 'pending', 'pending')
+  `);
+
+  db.transaction((submittedNames) => {
+    for (const rawName of submittedNames) {
+      const name = cleanName(rawName);
+      if (!name) {
+        continue;
+      }
+
+      const sourceResult = insertFromSource.run(name);
+      if (sourceResult.changes > 0) {
+        continue;
+      }
+
+      insertManual.run(name);
+    }
+  })(rawNames);
+}
+
+function deleteShowtimeName(nameId) {
+  if (!Number.isInteger(nameId)) {
+    throw new Error('A valid name id is required.');
+  }
+
+  const name = db.prepare('SELECT id FROM showtime_names WHERE id = ?').get(nameId);
+
+  if (!name) {
+    throw new Error('Name not found.');
+  }
+
+  db.transaction(() => {
+    db.prepare('DELETE FROM showtime_comparisons WHERE winner_name_id = ? OR loser_name_id = ?').run(nameId, nameId);
+    db.prepare('DELETE FROM showtime_ratings WHERE name_id = ?').run(nameId);
+    db.prepare('DELETE FROM showtime_names WHERE id = ?').run(nameId);
+  })();
+}
+
+function recordShowtimeComparison(userId, winnerId, loserId) {
+  const winner = db.prepare('SELECT id FROM showtime_names WHERE id = ?').get(winnerId);
+  const loser = db.prepare('SELECT id FROM showtime_names WHERE id = ?').get(loserId);
+
+  if (!winner || !loser) {
+    throw new Error('Both names must exist before comparing them.');
+  }
+
+  ensureShowtimeRatingsForUser(userId);
+
+  db.transaction(() => {
+    const winnerRow = db.prepare('SELECT rating FROM showtime_ratings WHERE user_id = ? AND name_id = ?').get(userId, winnerId);
+    const loserRow = db.prepare('SELECT rating FROM showtime_ratings WHERE user_id = ? AND name_id = ?').get(userId, loserId);
+
+    const winnerExpected = expectedScore(winnerRow.rating, loserRow.rating);
+    const loserExpected = expectedScore(loserRow.rating, winnerRow.rating);
+    const nextWinnerRating = winnerRow.rating + K_FACTOR * (1 - winnerExpected);
+    const nextLoserRating = loserRow.rating + K_FACTOR * (0 - loserExpected);
+
+    db.prepare('UPDATE showtime_ratings SET rating = ? WHERE user_id = ? AND name_id = ?').run(nextWinnerRating, userId, winnerId);
+    db.prepare('UPDATE showtime_ratings SET rating = ? WHERE user_id = ? AND name_id = ?').run(nextLoserRating, userId, loserId);
+    db.prepare('INSERT INTO showtime_comparisons (user_id, winner_name_id, loser_name_id) VALUES (?, ?, ?)').run(userId, winnerId, loserId);
+  })();
+}
+
+function buildShowtimeState(activeSlug) {
+  const activeUser = ensureShowtimeUser(activeSlug);
+  ensureShowtimeRatingsForAllUsers();
+
+  const users = db.prepare('SELECT id, slug FROM showtime_users ORDER BY slug').all();
+  const nameComparisonRows = db.prepare(`
+    SELECT name_id, COUNT(*) AS count
+    FROM (
+      SELECT winner_name_id AS name_id
+      FROM showtime_comparisons
+      WHERE user_id = ?
+      UNION ALL
+      SELECT loser_name_id AS name_id
+      FROM showtime_comparisons
+      WHERE user_id = ?
+    )
+    GROUP BY name_id
+  `).all(activeUser.id, activeUser.id);
+  const nameComparisonCounts = new Map(nameComparisonRows.map((row) => [row.name_id, row.count]));
+  const names = db.prepare(`
+    SELECT id, name, wiki_summary, wiki_source_url, wiki_status, wiki_updated_at, ssa_year, ssa_births, ssa_rank, btn_usage, btn_origin, btn_language_root, btn_status
+    FROM showtime_names
+    ORDER BY name COLLATE NOCASE
+  `).all().map((name) => ({
+    id: name.id,
+    name: name.name,
+    summary: name.wiki_summary || '',
+    summarySourceUrl: name.wiki_source_url || '',
+    summaryStatus: name.wiki_status || 'pending',
+    summaryUpdatedAt: name.wiki_updated_at || null,
+    ssaYear: name.ssa_year || null,
+    ssaBirths: name.ssa_births || null,
+    ssaRank: name.ssa_rank || null,
+    btnUsage: name.btn_usage || '',
+    btnOrigin: name.btn_origin || '',
+    btnLanguageRoot: name.btn_language_root || '',
+    btnStatus: name.btn_status || 'pending',
+    comparisonCount: nameComparisonCounts.get(name.id) || 0,
+  }));
+  const comparisonRows = db.prepare(`
+    SELECT user_id, COUNT(*) AS count
+    FROM showtime_comparisons
+    GROUP BY user_id
+  `).all();
+  const comparisonCounts = new Map(comparisonRows.map((row) => [row.user_id, row.count]));
+
+  const rankings = users.map((user) => {
+    const rankedNames = db.prepare(`
+      SELECT showtime_names.id, showtime_names.name, showtime_ratings.rating
+      FROM showtime_ratings
+      JOIN showtime_names ON showtime_names.id = showtime_ratings.name_id
+      WHERE showtime_ratings.user_id = ?
+      ORDER BY showtime_ratings.rating DESC, showtime_names.name COLLATE NOCASE ASC
+    `).all(user.id);
+
+    return {
+      slug: user.slug,
+      comparisonCount: comparisonCounts.get(user.id) || 0,
+      names: rankedNames,
+    };
+  });
+
+  return {
+    activeUser: activeUser.slug,
+    users: users.map((user) => ({ slug: user.slug })),
+    names,
+    rankings,
+    sourceNames: buildShowtimeSourceNames(),
+  };
+}
+
+function buildShowtimeCombinedState(rawSelectedUsers) {
+  const users = db.prepare('SELECT id, slug FROM showtime_users ORDER BY slug').all();
+  const names = db.prepare('SELECT id, name FROM showtime_names ORDER BY name COLLATE NOCASE').all();
+  const comparisonRows = db.prepare(`
+    SELECT user_id, COUNT(*) AS count
+    FROM showtime_comparisons
+    GROUP BY user_id
+  `).all();
+  const comparisonCounts = new Map(comparisonRows.map((row) => [row.user_id, row.count]));
+  const selectedSlugs = resolveSelectedSlugs(rawSelectedUsers, users);
+  const selectedUsers = users.filter((user) => selectedSlugs.includes(user.slug));
+  const ratingRows = selectedUsers.length
+    ? db.prepare(`
+        SELECT showtime_ratings.name_id, showtime_ratings.rating
+        FROM showtime_ratings
+        WHERE showtime_ratings.user_id IN (${selectedUsers.map(() => '?').join(', ')})
+      `).all(...selectedUsers.map((user) => user.id))
+    : [];
+
+  const ratingsByNameId = new Map(names.map((name) => [name.id, []]));
+  for (const row of ratingRows) {
+    ratingsByNameId.get(row.name_id).push(row.rating);
+  }
+
+  const combinedNames = names
+    .map((name) => {
+      const selectedRatings = ratingsByNameId.get(name.id) || [];
+      const combinedRating = selectedRatings.length
+        ? selectedRatings.reduce((sum, rating) => sum + rating, 0) / selectedRatings.length
+        : DEFAULT_RATING;
+
+      return {
+        id: name.id,
+        name: name.name,
+        rating: combinedRating,
+      };
+    })
+    .sort((left, right) => right.rating - left.rating || left.name.localeCompare(right.name));
+
+  return {
+    users: users.map((user) => ({
+      slug: user.slug,
+      included: selectedSlugs.includes(user.slug),
+    })),
+    combinedRanking: {
+      selectedUsers: selectedSlugs,
+      userCount: selectedUsers.length,
+      comparisonCount: selectedUsers.reduce((sum, user) => sum + (comparisonCounts.get(user.id) || 0), 0),
+      names: combinedNames,
+    },
+  };
+}
+
+function buildShowtimeSourceNames() {
+  ensureRatingsForAllUsers();
+
+  const users = db.prepare('SELECT id FROM users').all();
+  const ratingRows = users.length
+    ? db.prepare(`
+        SELECT ratings.name_id, ratings.rating
+        FROM ratings
+        WHERE ratings.user_id IN (${users.map(() => '?').join(', ')})
+      `).all(...users.map((user) => user.id))
+    : [];
+  const ratingsByNameId = new Map();
+
+  for (const row of ratingRows) {
+    if (!ratingsByNameId.has(row.name_id)) {
+      ratingsByNameId.set(row.name_id, []);
+    }
+
+    ratingsByNameId.get(row.name_id).push(row.rating);
+  }
+
+  const includedNames = new Set(
+    db.prepare('SELECT name FROM showtime_names').all().map((row) => row.name.toLowerCase()),
+  );
+
+  return db.prepare(`
+    SELECT id, name, wiki_summary, ssa_rank
+    FROM names
+    ORDER BY name COLLATE NOCASE
+  `).all().map((row) => {
+    const ratings = ratingsByNameId.get(row.id) || [];
+    const averageRating = ratings.length
+      ? ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length
+      : DEFAULT_RATING;
+
+    return {
+      id: row.id,
+      name: row.name,
+      averageRating,
+      summary: row.wiki_summary || '',
+      ssaRank: row.ssa_rank || null,
+      included: includedNames.has(row.name.toLowerCase()),
+    };
+  }).sort((left, right) => right.averageRating - left.averageRating || left.name.localeCompare(right.name));
 }
 
 function resolveSelectedSlugs(rawSelectedUsers, users) {

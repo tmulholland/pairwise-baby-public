@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Start Ranking Baby Names</title>
+    <title>Start Showtime Ranking</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -15,22 +15,22 @@
   <body>
     <main class="start-shell">
       <section class="start-panel">
-        <p class="eyebrow">Pairwise baby name ranking</p>
-        <h1>What is your name?</h1>
+        <p class="eyebrow">Final shortlist mode</p>
+        <h1>Who is choosing?</h1>
+        <p class="hero-copy">
+          This opens the separate delivery-room shortlist, not the public family ranking.
+        </p>
         <form id="start-form" class="start-form">
           <label class="field">
             <span>Your name</span>
             <input id="start-name" name="name" type="text" maxlength="40" autocomplete="name" autofocus />
           </label>
-          <button class="solid-button" type="submit">Start ranking</button>
+          <button class="solid-button" type="submit">Open shortlist</button>
           <p id="start-error" class="form-error hidden" role="alert"></p>
         </form>
-        <div class="action-row">
-          <a class="ghost-button nav-link" href="/showtime">Open showtime shortlist</a>
-        </div>
       </section>
     </main>
 
-    <script src="/static/start.js"></script>
+    <script src="/static/showtime-start.js"></script>
   </body>
 </html>

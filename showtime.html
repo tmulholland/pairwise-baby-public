@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Baby Name Pairwise</title>
+    <title>Showtime Baby Names</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -18,7 +18,7 @@
         <p class="section-label">Confirm User</p>
         <h2>Are you <span id="confirm-user-name">/guest</span>?</h2>
         <p class="hero-copy confirm-copy">
-          This helps avoid saving comparisons under the wrong person.
+          Showtime saves to a separate final-decision pool.
         </p>
         <div class="action-row">
           <button id="confirm-user-yes" class="solid-button" type="button">Yes, continue</button>
@@ -29,7 +29,11 @@
 
     <main class="app-shell">
       <section class="hero">
-        <p class="eyebrow">Pairwise baby name ranking</p>
+        <p class="eyebrow">Final shortlist mode</p>
+        <h1>Showtime picks</h1>
+        <p class="hero-copy">
+          Build a smaller finalist pool for the delivery-room decision. This page is isolated from the larger rankings.
+        </p>
       </section>
 
       <section class="panel matchup-panel">
@@ -60,14 +64,13 @@
             <span>Prioritize names with fewer comparisons</span>
           </label>
         </div>
-
       </section>
 
       <section class="panel personal-rankings-panel">
         <div class="panel-header">
           <div>
-            <p class="section-label">Your Rankings</p>
-            <h2>Current order for <span id="personal-ranking-user">/guest</span></h2>
+            <p class="section-label">Your Final Order</p>
+            <h2>Current shortlist for <span id="personal-ranking-user">/guest</span></h2>
           </div>
           <span id="personal-ranking-summary" class="pill">0 picks</span>
         </div>
@@ -85,17 +88,25 @@
 
         <form id="single-add-form" class="inline-form">
           <label class="field inline-field">
-            <span>Add one new baby name</span>
+            <span>Add one new final candidate</span>
             <input id="single-name" name="singleName" type="text" maxlength="80" />
           </label>
           <button class="solid-button" type="submit">Add</button>
         </form>
 
+        <form id="source-add-form" class="inline-form">
+          <label class="field inline-field">
+            <span>Pull a name from the main ranking pool</span>
+            <select id="source-name-select"></select>
+          </label>
+          <button id="source-add-button" class="ghost-button" type="submit">Import</button>
+        </form>
+
         <div class="name-bank">
           <div class="panel-header compact">
             <div>
-              <p class="section-label">Current pool</p>
-              <h3>Names in rotation</h3>
+              <p class="section-label">Final Pool</p>
+              <h3>Names in showtime rotation</h3>
             </div>
             <span id="name-count" class="pill">0 names</span>
           </div>
@@ -103,9 +114,9 @@
         </div>
 
         <div class="action-row subdued-action-row">
-          <a class="ghost-button nav-link subtle-link" href="/results">View rankings page</a>
-          <a class="ghost-button nav-link subtle-link" href="/combined">View combined ranking</a>
-          <a class="ghost-button nav-link subtle-link" href="/showtime">Open showtime shortlist</a>
+          <a class="ghost-button nav-link subtle-link" href="/showtime/results">Showtime results</a>
+          <a class="ghost-button nav-link subtle-link" href="/showtime/combined">Showtime combined</a>
+          <a class="ghost-button nav-link subtle-link" href="/results">Main rankings</a>
         </div>
 
         <div class="manual-compare-panel">
@@ -126,11 +137,11 @@
               <select id="manual-right-select"></select>
             </label>
           </div>
-          <p id="manual-compare-note" class="muted manual-compare-note">Choose two different names to force a specific comparison.</p>
+          <p id="manual-compare-note" class="muted manual-compare-note">Choose one or two names to control the matchup.</p>
         </div>
       </section>
     </main>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/showtime.js"></script>
   </body>
 </html>
