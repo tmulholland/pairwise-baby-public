@@ -102,16 +102,18 @@ function renderSummary() {
     const card = document.createElement('div');
     card.className = 'summary-card';
     const latest = getLatestTime(activityType);
-    card.textContent = latest
-      ? `${getCount(activityType)} ${label} • latest ${formatDisplayTime(latest)}`
-      : `${getCount(activityType)} ${label}`;
-    elements.summary.append(card);
-  }
+    const totalAmount = getFeedAmount(activityType);
+    const parts = [`${getCount(activityType)} ${label}`];
 
-  for (const amountRow of state.todaySummary.feedAmounts || []) {
-    const card = document.createElement('div');
-    card.className = 'summary-card';
-    card.textContent = `${formatActivityLabel(amountRow.activityType)}: ${formatAmount(amountRow.totalAmount, amountRow.amountUnit)}`;
+    if (latest) {
+      parts.push(`latest ${formatDisplayTime(latest)}`);
+    }
+
+    if (totalAmount) {
+      parts.push(totalAmount);
+    }
+
+    card.textContent = parts.join(' • ');
     elements.summary.append(card);
   }
 }
@@ -193,6 +195,15 @@ function getCount(activityType) {
 
 function getLatestTime(activityType) {
   return state.todaySummary?.latestByActivity?.[activityType] || '';
+}
+
+function getFeedAmount(activityType) {
+  const row = (state.todaySummary?.feedAmounts || []).find((entry) => entry.activityType === activityType);
+  if (!row) {
+    return '';
+  }
+
+  return formatAmount(row.totalAmount, row.amountUnit);
 }
 
 function syncAmountState() {
