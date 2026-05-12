@@ -9,6 +9,8 @@ const DEFAULT_RATING = 1200;
 const K_FACTOR = 24;
 const DEFAULT_USER = 'guest';
 const SHOWTIME_DEFAULT_USER = 'guest';
+const FINALE_DEFAULT_USER = 'guest';
+const FINALE_LAST_NAME = 'Mulholland';
 const SUMMARY_REFRESH_INTERVAL_MS = 1000 * 60 * 60 * 24 * 30;
 const SUMMARY_FETCH_DELAY_MS = 250;
 const app = express();
@@ -20,6 +22,7 @@ let isRefreshingSummaries = false;
 
 initializeDatabase();
 initializeShowtimeDatabase();
+initializeFinaleDatabase();
 queueSummaryRefreshForAllNames();
 void initializeSsaPopularity(db);
 void initializeBtnMetadata(db);
@@ -45,6 +48,18 @@ app.get('/showtime/results', (_req, res) => {
 
 app.get('/showtime/combined', (_req, res) => {
   res.sendFile(path.join(__dirname, 'showtime-combined.html'));
+});
+
+app.get('/finale', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'finale-start.html'));
+});
+
+app.get('/finale/results', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'finale-results.html'));
+});
+
+app.get('/finale/combined', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'finale-combined.html'));
 });
 
 app.get('/results', (_req, res) => {
@@ -91,6 +106,24 @@ app.get('/api/showtime/combined', (req, res) => {
   }
 });
 
+app.get('/api/finale/results', (_req, res) => {
+  try {
+    ensureFinaleRatingsForAllUsers();
+    res.json(buildFinaleState(FINALE_DEFAULT_USER));
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.get('/api/finale/combined', (req, res) => {
+  try {
+    ensureFinaleRatingsForAllUsers();
+    res.json(buildFinaleCombinedState(req.query.users));
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.get('/api/state/:userSlug', (req, res) => {
   try {
     const user = ensureUser(req.params.userSlug);
@@ -111,6 +144,16 @@ app.get('/api/showtime/state/:userSlug', (req, res) => {
   }
 });
 
+app.get('/api/finale/state/:userSlug', (req, res) => {
+  try {
+    const user = ensureFinaleUser(req.params.userSlug);
+    ensureFinaleRatingsForAllUsers();
+    res.json(buildFinaleState(user.slug));
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.post('/api/users', (req, res) => {
   try {
     const user = ensureUser(req.body.slug);
@@ -125,6 +168,16 @@ app.post('/api/showtime/users', (req, res) => {
   try {
     const user = ensureShowtimeUser(req.body.slug);
     ensureShowtimeRatingsForUser(user.id);
+    res.status(201).json({ user });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/finale/users', (req, res) => {
+  try {
+    const user = ensureFinaleUser(req.body.slug);
+    ensureFinaleRatingsForUser(user.id);
     res.status(201).json({ user });
   } catch (error) {
     handleError(res, error);
@@ -166,6 +219,28 @@ app.post('/api/showtime/names', (req, res) => {
   }
 });
 
+app.post('/api/finale/first-names', (req, res) => {
+  try {
+    const submittedNames = Array.isArray(req.body.names) ? req.body.names : [];
+    addFinaleFirstNames(submittedNames);
+    ensureFinaleRatingsForAllUsers();
+    res.status(201).json({ state: buildFinaleState(normalizeSlug(req.body.userSlug) || FINALE_DEFAULT_USER) });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/finale/middle-names', (req, res) => {
+  try {
+    const submittedNames = Array.isArray(req.body.names) ? req.body.names : [];
+    addFinaleMiddleNames(submittedNames);
+    ensureFinaleRatingsForAllUsers();
+    res.status(201).json({ state: buildFinaleState(normalizeSlug(req.body.userSlug) || FINALE_DEFAULT_USER) });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.delete('/api/names/:nameId', (req, res) => {
   try {
     const activeUserSlug = normalizeSlug(req.query.userSlug) || DEFAULT_USER;
@@ -181,6 +256,26 @@ app.delete('/api/showtime/names/:nameId', (req, res) => {
     const activeUserSlug = normalizeSlug(req.query.userSlug) || SHOWTIME_DEFAULT_USER;
     deleteShowtimeName(Number(req.params.nameId));
     res.json({ state: buildShowtimeState(activeUserSlug) });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.delete('/api/finale/first-names/:nameId', (req, res) => {
+  try {
+    const activeUserSlug = normalizeSlug(req.query.userSlug) || FINALE_DEFAULT_USER;
+    deleteFinaleFirstName(Number(req.params.nameId));
+    res.json({ state: buildFinaleState(activeUserSlug) });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.delete('/api/finale/middle-names/:nameId', (req, res) => {
+  try {
+    const activeUserSlug = normalizeSlug(req.query.userSlug) || FINALE_DEFAULT_USER;
+    deleteFinaleMiddleName(Number(req.params.nameId));
+    res.json({ state: buildFinaleState(activeUserSlug) });
   } catch (error) {
     handleError(res, error);
   }
@@ -222,8 +317,42 @@ app.post('/api/showtime/comparisons', (req, res) => {
   }
 });
 
+app.post('/api/finale/comparisons', (req, res) => {
+  try {
+    const user = ensureFinaleUser(req.body.userSlug);
+    const winnerFirstId = Number(req.body.winnerFirstId);
+    const winnerMiddleId = Number(req.body.winnerMiddleId);
+    const loserFirstId = Number(req.body.loserFirstId);
+    const loserMiddleId = Number(req.body.loserMiddleId);
+
+    if (
+      !Number.isInteger(winnerFirstId) ||
+      !Number.isInteger(winnerMiddleId) ||
+      !Number.isInteger(loserFirstId) ||
+      !Number.isInteger(loserMiddleId)
+    ) {
+      res.status(400).json({ error: 'A comparison needs two valid first-and-middle combinations.' });
+      return;
+    }
+
+    if (winnerFirstId === loserFirstId && winnerMiddleId === loserMiddleId) {
+      res.status(400).json({ error: 'The two sides must be different first-and-middle combinations.' });
+      return;
+    }
+
+    recordFinaleComparison(user.id, winnerFirstId, winnerMiddleId, loserFirstId, loserMiddleId);
+    res.status(201).json({ state: buildFinaleState(user.slug) });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.get('/showtime/:userSlug', (_req, res) => {
   res.sendFile(path.join(__dirname, 'showtime.html'));
+});
+
+app.get('/finale/:userSlug', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'finale.html'));
 });
 
 app.get(/^\/api\/.*/, (_req, res) => {
@@ -331,6 +460,56 @@ function initializeShowtimeDatabase() {
   `);
 
   ensureShowtimeUser(SHOWTIME_DEFAULT_USER);
+}
+
+function initializeFinaleDatabase() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS finale_users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS finale_first_names (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS finale_middle_names (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS finale_ratings (
+      user_id INTEGER NOT NULL,
+      first_name_id INTEGER NOT NULL,
+      middle_name_id INTEGER NOT NULL,
+      rating REAL NOT NULL DEFAULT ${DEFAULT_RATING},
+      PRIMARY KEY (user_id, first_name_id, middle_name_id),
+      FOREIGN KEY (user_id) REFERENCES finale_users(id) ON DELETE CASCADE,
+      FOREIGN KEY (first_name_id) REFERENCES finale_first_names(id) ON DELETE CASCADE,
+      FOREIGN KEY (middle_name_id) REFERENCES finale_middle_names(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS finale_comparisons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      winner_first_name_id INTEGER NOT NULL,
+      winner_middle_name_id INTEGER NOT NULL,
+      loser_first_name_id INTEGER NOT NULL,
+      loser_middle_name_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES finale_users(id) ON DELETE CASCADE,
+      FOREIGN KEY (winner_first_name_id) REFERENCES finale_first_names(id) ON DELETE CASCADE,
+      FOREIGN KEY (winner_middle_name_id) REFERENCES finale_middle_names(id) ON DELETE CASCADE,
+      FOREIGN KEY (loser_first_name_id) REFERENCES finale_first_names(id) ON DELETE CASCADE,
+      FOREIGN KEY (loser_middle_name_id) REFERENCES finale_middle_names(id) ON DELETE CASCADE
+    );
+  `);
+
+  ensureFinaleUser(FINALE_DEFAULT_USER);
 }
 
 function ensureNameSummaryColumns() {
@@ -875,6 +1054,316 @@ function buildShowtimeSourceNames() {
       included: includedNames.has(row.name.toLowerCase()),
     };
   }).sort((left, right) => right.averageRating - left.averageRating || left.name.localeCompare(right.name));
+}
+
+function ensureFinaleUser(rawSlug) {
+  const slug = normalizeSlug(rawSlug);
+
+  if (!slug) {
+    throw new Error('User slug is required.');
+  }
+
+  db.prepare('INSERT OR IGNORE INTO finale_users (slug) VALUES (?)').run(slug);
+
+  const user = db.prepare('SELECT id, slug FROM finale_users WHERE slug = ?').get(slug);
+  ensureFinaleRatingsForUser(user.id);
+  return user;
+}
+
+function ensureFinaleRatingsForAllUsers() {
+  const users = db.prepare('SELECT id FROM finale_users').all();
+  for (const user of users) {
+    ensureFinaleRatingsForUser(user.id);
+  }
+}
+
+function ensureFinaleRatingsForUser(userId) {
+  db.prepare(`
+    INSERT OR IGNORE INTO finale_ratings (user_id, first_name_id, middle_name_id, rating)
+    SELECT ?, finale_first_names.id, finale_middle_names.id, ${DEFAULT_RATING}
+    FROM finale_first_names
+    CROSS JOIN finale_middle_names
+  `).run(userId);
+}
+
+function addFinaleFirstNames(rawNames) {
+  const insert = db.prepare('INSERT OR IGNORE INTO finale_first_names (name) VALUES (?)');
+
+  db.transaction((submittedNames) => {
+    for (const rawName of submittedNames) {
+      const name = cleanName(rawName);
+      if (!name) {
+        continue;
+      }
+
+      insert.run(name);
+    }
+  })(rawNames);
+}
+
+function addFinaleMiddleNames(rawNames) {
+  const insert = db.prepare('INSERT OR IGNORE INTO finale_middle_names (name) VALUES (?)');
+
+  db.transaction((submittedNames) => {
+    for (const rawName of submittedNames) {
+      const name = cleanName(rawName);
+      if (!name) {
+        continue;
+      }
+
+      insert.run(name);
+    }
+  })(rawNames);
+}
+
+function deleteFinaleFirstName(nameId) {
+  if (!Number.isInteger(nameId)) {
+    throw new Error('A valid first name id is required.');
+  }
+
+  const row = db.prepare('SELECT id FROM finale_first_names WHERE id = ?').get(nameId);
+  if (!row) {
+    throw new Error('First name not found.');
+  }
+
+  db.transaction(() => {
+    db.prepare(`
+      DELETE FROM finale_comparisons
+      WHERE winner_first_name_id = ? OR loser_first_name_id = ?
+    `).run(nameId, nameId);
+    db.prepare('DELETE FROM finale_ratings WHERE first_name_id = ?').run(nameId);
+    db.prepare('DELETE FROM finale_first_names WHERE id = ?').run(nameId);
+  })();
+}
+
+function deleteFinaleMiddleName(nameId) {
+  if (!Number.isInteger(nameId)) {
+    throw new Error('A valid middle name id is required.');
+  }
+
+  const row = db.prepare('SELECT id FROM finale_middle_names WHERE id = ?').get(nameId);
+  if (!row) {
+    throw new Error('Middle name not found.');
+  }
+
+  db.transaction(() => {
+    db.prepare(`
+      DELETE FROM finale_comparisons
+      WHERE winner_middle_name_id = ? OR loser_middle_name_id = ?
+    `).run(nameId, nameId);
+    db.prepare('DELETE FROM finale_ratings WHERE middle_name_id = ?').run(nameId);
+    db.prepare('DELETE FROM finale_middle_names WHERE id = ?').run(nameId);
+  })();
+}
+
+function recordFinaleComparison(userId, winnerFirstId, winnerMiddleId, loserFirstId, loserMiddleId) {
+  const winnerFirst = db.prepare('SELECT id FROM finale_first_names WHERE id = ?').get(winnerFirstId);
+  const winnerMiddle = db.prepare('SELECT id FROM finale_middle_names WHERE id = ?').get(winnerMiddleId);
+  const loserFirst = db.prepare('SELECT id FROM finale_first_names WHERE id = ?').get(loserFirstId);
+  const loserMiddle = db.prepare('SELECT id FROM finale_middle_names WHERE id = ?').get(loserMiddleId);
+
+  if (!winnerFirst || !winnerMiddle || !loserFirst || !loserMiddle) {
+    throw new Error('Both sides must use existing first and middle names.');
+  }
+
+  ensureFinaleRatingsForUser(userId);
+
+  db.transaction(() => {
+    const winnerRow = db.prepare(`
+      SELECT rating
+      FROM finale_ratings
+      WHERE user_id = ? AND first_name_id = ? AND middle_name_id = ?
+    `).get(userId, winnerFirstId, winnerMiddleId);
+    const loserRow = db.prepare(`
+      SELECT rating
+      FROM finale_ratings
+      WHERE user_id = ? AND first_name_id = ? AND middle_name_id = ?
+    `).get(userId, loserFirstId, loserMiddleId);
+
+    const winnerExpected = expectedScore(winnerRow.rating, loserRow.rating);
+    const loserExpected = expectedScore(loserRow.rating, winnerRow.rating);
+    const nextWinnerRating = winnerRow.rating + K_FACTOR * (1 - winnerExpected);
+    const nextLoserRating = loserRow.rating + K_FACTOR * (0 - loserExpected);
+
+    db.prepare(`
+      UPDATE finale_ratings
+      SET rating = ?
+      WHERE user_id = ? AND first_name_id = ? AND middle_name_id = ?
+    `).run(nextWinnerRating, userId, winnerFirstId, winnerMiddleId);
+    db.prepare(`
+      UPDATE finale_ratings
+      SET rating = ?
+      WHERE user_id = ? AND first_name_id = ? AND middle_name_id = ?
+    `).run(nextLoserRating, userId, loserFirstId, loserMiddleId);
+    db.prepare(`
+      INSERT INTO finale_comparisons (
+        user_id,
+        winner_first_name_id,
+        winner_middle_name_id,
+        loser_first_name_id,
+        loser_middle_name_id
+      ) VALUES (?, ?, ?, ?, ?)
+    `).run(userId, winnerFirstId, winnerMiddleId, loserFirstId, loserMiddleId);
+  })();
+}
+
+function buildFinaleState(activeSlug) {
+  const activeUser = ensureFinaleUser(activeSlug);
+  ensureFinaleRatingsForAllUsers();
+
+  const users = db.prepare('SELECT id, slug FROM finale_users ORDER BY slug').all();
+  const firstNames = db.prepare('SELECT id, name FROM finale_first_names ORDER BY name COLLATE NOCASE').all();
+  const middleNames = db.prepare('SELECT id, name FROM finale_middle_names ORDER BY name COLLATE NOCASE').all();
+  const combinationRows = buildFinaleCombinations();
+  const comboComparisonRows = db.prepare(`
+    SELECT
+      user_id,
+      first_name_id,
+      middle_name_id,
+      COUNT(*) AS count
+    FROM (
+      SELECT user_id, winner_first_name_id AS first_name_id, winner_middle_name_id AS middle_name_id
+      FROM finale_comparisons
+      UNION ALL
+      SELECT user_id, loser_first_name_id AS first_name_id, loser_middle_name_id AS middle_name_id
+      FROM finale_comparisons
+    )
+    GROUP BY user_id, first_name_id, middle_name_id
+  `).all();
+  const comboComparisonCounts = new Map(
+    comboComparisonRows.map((row) => [`${row.user_id}:${getFinaleCombinationKey(row.first_name_id, row.middle_name_id)}`, row.count]),
+  );
+  const comparisonRows = db.prepare(`
+    SELECT user_id, COUNT(*) AS count
+    FROM finale_comparisons
+    GROUP BY user_id
+  `).all();
+  const comparisonCounts = new Map(comparisonRows.map((row) => [row.user_id, row.count]));
+
+  const rankings = users.map((user) => {
+    const rankedCombos = db.prepare(`
+      SELECT
+        finale_ratings.first_name_id,
+        finale_ratings.middle_name_id,
+        finale_ratings.rating,
+        finale_first_names.name AS first_name,
+        finale_middle_names.name AS middle_name
+      FROM finale_ratings
+      JOIN finale_first_names ON finale_first_names.id = finale_ratings.first_name_id
+      JOIN finale_middle_names ON finale_middle_names.id = finale_ratings.middle_name_id
+      WHERE finale_ratings.user_id = ?
+      ORDER BY finale_ratings.rating DESC, finale_first_names.name COLLATE NOCASE ASC, finale_middle_names.name COLLATE NOCASE ASC
+    `).all(user.id).map((row) => ({
+      firstNameId: row.first_name_id,
+      middleNameId: row.middle_name_id,
+      firstName: row.first_name,
+      middleName: row.middle_name,
+      fullName: buildFinaleFullName(row.first_name, row.middle_name),
+      rating: row.rating,
+      comparisonCount: comboComparisonCounts.get(`${user.id}:${getFinaleCombinationKey(row.first_name_id, row.middle_name_id)}`) || 0,
+    }));
+
+    return {
+      slug: user.slug,
+      comparisonCount: comparisonCounts.get(user.id) || 0,
+      names: rankedCombos,
+    };
+  });
+
+  return {
+    activeUser: activeUser.slug,
+    users: users.map((user) => ({ slug: user.slug })),
+    firstNames,
+    middleNames,
+    combinations: combinationRows,
+    rankings,
+    lastName: FINALE_LAST_NAME,
+  };
+}
+
+function buildFinaleCombinedState(rawSelectedUsers) {
+  const comparisonRows = db.prepare(`
+    SELECT user_id, COUNT(*) AS count
+    FROM finale_comparisons
+    GROUP BY user_id
+  `).all();
+  const comparisonCounts = new Map(comparisonRows.map((row) => [row.user_id, row.count]));
+  const users = db.prepare('SELECT id, slug FROM finale_users ORDER BY slug').all()
+    .filter((user) => (comparisonCounts.get(user.id) || 0) > 0);
+  const selectedSlugs = resolveSelectedSlugs(rawSelectedUsers, users);
+  const selectedUsers = users.filter((user) => selectedSlugs.includes(user.slug));
+  const combinationRows = buildFinaleCombinations();
+  const ratingRows = selectedUsers.length
+    ? db.prepare(`
+        SELECT first_name_id, middle_name_id, rating
+        FROM finale_ratings
+        WHERE user_id IN (${selectedUsers.map(() => '?').join(', ')})
+      `).all(...selectedUsers.map((user) => user.id))
+    : [];
+
+  const ratingsByKey = new Map(combinationRows.map((row) => [getFinaleCombinationKey(row.firstNameId, row.middleNameId), []]));
+  for (const row of ratingRows) {
+    ratingsByKey.get(getFinaleCombinationKey(row.first_name_id, row.middle_name_id)).push(row.rating);
+  }
+
+  const combinedNames = combinationRows
+    .map((row) => {
+      const selectedRatings = ratingsByKey.get(getFinaleCombinationKey(row.firstNameId, row.middleNameId)) || [];
+      const combinedRating = selectedRatings.length
+        ? selectedRatings.reduce((sum, rating) => sum + rating, 0) / selectedRatings.length
+        : DEFAULT_RATING;
+
+      return {
+        firstNameId: row.firstNameId,
+        middleNameId: row.middleNameId,
+        firstName: row.firstName,
+        middleName: row.middleName,
+        fullName: row.fullName,
+        rating: combinedRating,
+      };
+    })
+    .sort((left, right) => right.rating - left.rating || left.fullName.localeCompare(right.fullName));
+
+  return {
+    users: users.map((user) => ({
+      slug: user.slug,
+      included: selectedSlugs.includes(user.slug),
+    })),
+    combinedRanking: {
+      selectedUsers: selectedSlugs,
+      userCount: selectedUsers.length,
+      comparisonCount: selectedUsers.reduce((sum, user) => sum + (comparisonCounts.get(user.id) || 0), 0),
+      names: combinedNames,
+    },
+    lastName: FINALE_LAST_NAME,
+  };
+}
+
+function buildFinaleCombinations() {
+  return db.prepare(`
+    SELECT
+      finale_first_names.id AS first_name_id,
+      finale_middle_names.id AS middle_name_id,
+      finale_first_names.name AS first_name,
+      finale_middle_names.name AS middle_name
+    FROM finale_first_names
+    CROSS JOIN finale_middle_names
+    ORDER BY finale_first_names.name COLLATE NOCASE, finale_middle_names.name COLLATE NOCASE
+  `).all().map((row) => ({
+    firstNameId: row.first_name_id,
+    middleNameId: row.middle_name_id,
+    firstName: row.first_name,
+    middleName: row.middle_name,
+    fullName: buildFinaleFullName(row.first_name, row.middle_name),
+  }));
+}
+
+function buildFinaleFullName(firstName, middleName) {
+  return `${firstName} ${middleName} ${FINALE_LAST_NAME}`.replace(/\s+/g, ' ').trim();
+}
+
+function getFinaleCombinationKey(firstNameId, middleNameId) {
+  return `${firstNameId}:${middleNameId}`;
 }
 
 function resolveSelectedSlugs(rawSelectedUsers, users) {

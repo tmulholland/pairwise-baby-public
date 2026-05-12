@@ -683,6 +683,28 @@ code {
   color: var(--ink);
 }
 
+.finale-choice-card {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+}
+
+.finale-middle-name {
+  font-size: clamp(1.6rem, 3.5vw, 2.7rem);
+  line-height: 1;
+}
+
+.finale-last-name {
+  margin-top: 0;
+  min-height: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-dark);
+}
+
 @media (max-width: 800px) {
   .choice-card {
     min-height: 260px;

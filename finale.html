@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Baby Name Pairwise</title>
+    <title>Finale Baby Names</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -18,7 +18,7 @@
         <p class="section-label">Confirm User</p>
         <h2>Are you <span id="confirm-user-name">/guest</span>?</h2>
         <p class="hero-copy confirm-copy">
-          This helps avoid saving comparisons under the wrong person.
+          Finale saves to a separate first-and-middle-name pool.
         </p>
         <div class="action-row">
           <button id="confirm-user-yes" class="solid-button" type="button">Yes, continue</button>
@@ -29,7 +29,11 @@
 
     <main class="app-shell">
       <section class="hero">
-        <p class="eyebrow">Pairwise baby name ranking</p>
+        <p class="eyebrow">Finale mode</p>
+        <h1>First, middle, full flow.</h1>
+        <p class="hero-copy">
+          Compare full combinations built from separate first and middle name pools.
+        </p>
       </section>
 
       <section class="panel matchup-panel">
@@ -41,33 +45,32 @@
         </div>
 
         <div id="matchup-state" class="matchup-state">
-          <p>Loading names.</p>
+          <p>Loading combinations.</p>
         </div>
 
         <div id="matchup" class="matchup hidden">
-          <button id="choice-left" class="choice-card" type="button"></button>
+          <button id="choice-left" class="choice-card finale-choice-card" type="button"></button>
           <div class="versus">
             <span>vs</span>
             <button id="skip-pair" class="ghost-button small" type="button">Skip pair</button>
           </div>
-          <button id="choice-right" class="choice-card" type="button"></button>
+          <button id="choice-right" class="choice-card finale-choice-card" type="button"></button>
         </div>
 
         <div class="meta-row compare-settings-row">
           <p id="comparison-count" class="muted">0 comparisons recorded</p>
           <label class="toggle-row" for="prioritize-fewer-toggle">
             <input id="prioritize-fewer-toggle" type="checkbox" />
-            <span>Prioritize names with fewer comparisons</span>
+            <span>Prioritize combinations with fewer comparisons</span>
           </label>
         </div>
-
       </section>
 
       <section class="panel personal-rankings-panel">
         <div class="panel-header">
           <div>
-            <p class="section-label">Your Rankings</p>
-            <h2>Current order for <span id="personal-ranking-user">/guest</span></h2>
+            <p class="section-label">Your Finale Order</p>
+            <h2>Current combinations for <span id="personal-ranking-user">/guest</span></h2>
           </div>
           <span id="personal-ranking-summary" class="pill">0 picks</span>
         </div>
@@ -83,55 +86,56 @@
           <span id="current-user-pill" class="pill">Loading</span>
         </div>
 
-        <form id="single-add-form" class="inline-form">
-          <label class="field inline-field">
-            <span>Add one new baby name</span>
-            <input id="single-name" name="singleName" type="text" maxlength="80" />
-          </label>
-          <button class="solid-button" type="submit">Add</button>
-        </form>
+        <div class="field-grid two-up">
+          <form id="first-name-form" class="stack-form">
+            <label class="field">
+              <span>Add first name</span>
+              <input id="first-name-input" name="firstName" type="text" maxlength="80" />
+            </label>
+            <button class="solid-button" type="submit">Add first name</button>
+          </form>
 
-        <div class="name-bank">
-          <div class="panel-header compact">
-            <div>
-              <p class="section-label">Current pool</p>
-              <h3>Names in rotation</h3>
+          <form id="middle-name-form" class="stack-form">
+            <label class="field">
+              <span>Add middle name</span>
+              <input id="middle-name-input" name="middleName" type="text" maxlength="80" />
+            </label>
+            <button class="solid-button" type="submit">Add middle name</button>
+          </form>
+        </div>
+
+        <div class="field-grid two-up">
+          <div class="name-bank">
+            <div class="panel-header compact">
+              <div>
+                <p class="section-label">First names</p>
+                <h3>Finale first-name pool</h3>
+              </div>
+              <span id="first-name-count" class="pill">0 names</span>
             </div>
-            <span id="name-count" class="pill">0 names</span>
+            <ul id="first-name-list" class="tag-list"></ul>
           </div>
-          <ul id="name-list" class="tag-list"></ul>
+
+          <div class="name-bank">
+            <div class="panel-header compact">
+              <div>
+                <p class="section-label">Middle names</p>
+                <h3>Finale middle-name pool</h3>
+              </div>
+              <span id="middle-name-count" class="pill">0 names</span>
+            </div>
+            <ul id="middle-name-list" class="tag-list"></ul>
+          </div>
         </div>
 
         <div class="action-row subdued-action-row">
-          <a class="ghost-button nav-link subtle-link" href="/results">View rankings page</a>
-          <a class="ghost-button nav-link subtle-link" href="/combined">View combined ranking</a>
-          <a class="ghost-button nav-link subtle-link" href="/showtime">Open showtime shortlist</a>
-          <a class="ghost-button nav-link subtle-link" href="/finale">Open finale combinations</a>
-        </div>
-
-        <div class="manual-compare-panel">
-          <div class="panel-header compact">
-            <div>
-              <p class="section-label">Manual Compare</p>
-              <h3>Pick the exact matchup</h3>
-            </div>
-            <button id="manual-compare-reset" class="ghost-button small" type="button">Random pair</button>
-          </div>
-          <div class="field-grid two-up manual-compare-grid">
-            <label class="field">
-              <span>Left name</span>
-              <select id="manual-left-select"></select>
-            </label>
-            <label class="field">
-              <span>Right name</span>
-              <select id="manual-right-select"></select>
-            </label>
-          </div>
-          <p id="manual-compare-note" class="muted manual-compare-note">Choose two different names to force a specific comparison.</p>
+          <a class="ghost-button nav-link subtle-link" href="/finale/results">Finale results</a>
+          <a class="ghost-button nav-link subtle-link" href="/finale/combined">Finale combined</a>
+          <a class="ghost-button nav-link subtle-link" href="/showtime">Showtime</a>
         </div>
       </section>
     </main>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/finale.js"></script>
   </body>
 </html>
