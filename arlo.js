@@ -3,6 +3,8 @@ const elements = {
   activityType: document.querySelector('#activity-type'),
   amountValue: document.querySelector('#amount-value'),
   amountUnit: document.querySelector('#amount-unit'),
+  poopColorField: document.querySelector('#poop-color-field'),
+  poopColor: document.querySelector('#poop-color'),
   amountHelp: document.querySelector('#amount-help'),
   eventDate: document.querySelector('#event-date'),
   eventTime: document.querySelector('#event-time'),
@@ -58,6 +60,7 @@ async function handleSubmit(event) {
         activityType: elements.activityType.value,
         amountValue: elements.amountValue.value,
         amountUnit: elements.amountUnit.value,
+        poopColor: elements.poopColor.value,
         eventDate: elements.eventDate.value,
         eventTime: elements.eventTime.value,
       }),
@@ -138,22 +141,54 @@ function renderEvents() {
     const item = document.createElement('li');
     const title = document.createElement('span');
     const meta = document.createElement('span');
+    const actions = document.createElement('span');
+    const deleteButton = document.createElement('button');
     title.className = 'ranking-name';
     meta.className = 'ranking-score';
+    actions.className = 'arlo-log-actions';
+    deleteButton.type = 'button';
+    deleteButton.className = 'name-delete-button';
+    deleteButton.textContent = 'Delete';
+    deleteButton.addEventListener('click', () => {
+      deleteEvent(entry.id);
+    });
     title.textContent = buildEventTitle(entry);
     meta.textContent = `${entry.eventDate} at ${formatDisplayTime(entry.eventTime)}`;
-    item.append(title, meta);
+    actions.append(deleteButton);
+    item.append(title, meta, actions);
     elements.eventList.append(item);
+  }
+}
+
+async function deleteEvent(eventId) {
+  const confirmed = window.confirm('Delete this Arlo event?');
+  if (!confirmed) {
+    return;
+  }
+
+  setStatus('Deleting');
+  showError('');
+
+  try {
+    const payload = await apiFetchJson(`/api/arlo/events/${eventId}`, {
+      method: 'DELETE',
+    });
+    applyState(payload);
+    setStatus('Deleted');
+  } catch (error) {
+    setStatus('Error');
+    showError(error.message);
   }
 }
 
 function buildEventTitle(entry) {
   const label = formatActivityLabel(entry.activityType);
   if (entry.amountValue === null || entry.amountValue === undefined || entry.amountValue === '') {
-    return label;
+    return entry.poopColor ? `${label} • ${entry.poopColor}` : label;
   }
 
-  return `${label} • ${formatAmount(entry.amountValue, entry.amountUnit || 'oz')}`;
+  const amountPart = `${label} • ${formatAmount(entry.amountValue, entry.amountUnit || 'oz')}`;
+  return entry.poopColor ? `${amountPart} • ${entry.poopColor}` : amountPart;
 }
 
 function formatActivityLabel(activityType) {
@@ -237,14 +272,21 @@ function formatElapsedSince(eventDate, eventTime) {
 function syncAmountState() {
   const diaperActivities = new Set(['poop-diaper', 'pee-diaper', 'both-diaper']);
   const isDiaper = diaperActivities.has(elements.activityType.value);
+  const supportsPoopColor = new Set(['poop-diaper', 'both-diaper']).has(elements.activityType.value);
   elements.amountValue.disabled = isDiaper;
   elements.amountUnit.disabled = isDiaper;
+  elements.poopColorField.classList.toggle('hidden', !supportsPoopColor);
+  elements.poopColor.disabled = !supportsPoopColor;
   elements.amountHelp.textContent = isDiaper
     ? 'Amount is only for feeding events.'
     : 'Use amount for formula, colostrum, or stored breast milk. For direct breastfeeding, leave it blank if you do not know.';
 
   if (isDiaper) {
     elements.amountValue.value = '';
+  }
+
+  if (!supportsPoopColor) {
+    elements.poopColor.value = '';
   }
 }
 

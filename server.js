@@ -370,6 +370,15 @@ app.post('/api/arlo/events', (req, res) => {
   }
 });
 
+app.delete('/api/arlo/events/:eventId', (req, res) => {
+  try {
+    deleteArloEvent(Number(req.params.eventId));
+    res.json(buildArloState());
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.get('/showtime/:userSlug', (_req, res) => {
   res.sendFile(path.join(__dirname, 'showtime.html'));
 });
@@ -544,6 +553,7 @@ function initializeArloDatabase() {
       event_time TEXT NOT NULL,
       amount_value REAL,
       amount_unit TEXT,
+      poop_color TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
@@ -551,6 +561,9 @@ function initializeArloDatabase() {
   const columns = new Set(db.prepare('PRAGMA table_info(arlo_events)').all().map((column) => column.name));
   if (!columns.has('amount_unit')) {
     db.exec('ALTER TABLE arlo_events ADD COLUMN amount_unit TEXT');
+  }
+  if (!columns.has('poop_color')) {
+    db.exec('ALTER TABLE arlo_events ADD COLUMN poop_color TEXT');
   }
 }
 
@@ -1410,7 +1423,7 @@ function getFinaleCombinationKey(firstNameId, middleNameId) {
 
 function buildArloState() {
   const recentEvents = db.prepare(`
-    SELECT id, activity_type, event_date, event_time, amount_value, amount_unit, created_at
+    SELECT id, activity_type, event_date, event_time, amount_value, amount_unit, poop_color, created_at
     FROM arlo_events
     ORDER BY event_date DESC, event_time DESC, id DESC
     LIMIT ?
@@ -1421,6 +1434,7 @@ function buildArloState() {
     eventTime: row.event_time,
     amountValue: row.amount_value,
     amountUnit: row.amount_unit || '',
+    poopColor: row.poop_color || '',
     createdAt: row.created_at,
   }));
 
@@ -1477,11 +1491,25 @@ function recordArloEvent(payload) {
   const eventTime = normalizeEventTime(payload.eventTime);
   const amountValue = normalizeArloAmount(payload.amountValue, activityType);
   const amountUnit = normalizeArloAmountUnit(payload.amountUnit, amountValue);
+  const poopColor = normalizePoopColor(payload.poopColor, activityType);
 
   db.prepare(`
-    INSERT INTO arlo_events (activity_type, event_date, event_time, amount_value, amount_unit)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(activityType, eventDate, eventTime, amountValue, amountUnit);
+    INSERT INTO arlo_events (activity_type, event_date, event_time, amount_value, amount_unit, poop_color)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(activityType, eventDate, eventTime, amountValue, amountUnit, poopColor);
+}
+
+function deleteArloEvent(eventId) {
+  if (!Number.isInteger(eventId)) {
+    throw new Error('A valid Arlo event id is required.');
+  }
+
+  const existing = db.prepare('SELECT id FROM arlo_events WHERE id = ?').get(eventId);
+  if (!existing) {
+    throw new Error('Arlo event not found.');
+  }
+
+  db.prepare('DELETE FROM arlo_events WHERE id = ?').run(eventId);
 }
 
 function normalizeArloActivityType(value) {
@@ -1552,6 +1580,16 @@ function normalizeArloAmountUnit(value, amountValue) {
   }
 
   return normalized;
+}
+
+function normalizePoopColor(value, activityType) {
+  const supportsPoopColor = new Set(['poop-diaper', 'both-diaper']);
+  if (!supportsPoopColor.has(activityType)) {
+    return null;
+  }
+
+  const normalized = String(value || '').trim();
+  return normalized ? normalized.slice(0, 40) : null;
 }
 
 function formatDateInTimeZone(date, timeZone) {
