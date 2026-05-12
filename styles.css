@@ -683,6 +683,14 @@ code {
   color: var(--ink);
 }
 
+.summary-card {
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(255, 250, 243, 0.78);
+  border: 1px solid var(--line);
+  font-weight: 700;
+}
+
 .finale-choice-card {
   justify-content: center;
   align-items: center;

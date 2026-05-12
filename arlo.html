@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arlo Mode</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero">
+        <p class="eyebrow">Arlo mode</p>
+        <h1>Feedings and diapers.</h1>
+        <p class="hero-copy">
+          Log what just happened without fighting the interface.
+        </p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="section-label">New Event</p>
+            <h2>Track Arlo</h2>
+          </div>
+          <span id="arlo-status" class="pill">Loading</span>
+        </div>
+
+        <form id="arlo-form" class="stack-form">
+          <div class="field-grid two-up">
+            <label class="field">
+              <span>Activity</span>
+              <select id="activity-type" name="activityType">
+                <option value="breastfeeding">Breastfeeding</option>
+                <option value="stored-breast-milk">Stored breast milk</option>
+                <option value="colostrum">Colostrum</option>
+                <option value="formula">Formula</option>
+                <option value="poop-diaper">Poop diaper</option>
+                <option value="pee-diaper">Pee diaper</option>
+                <option value="both-diaper">Both</option>
+              </select>
+            </label>
+
+            <div class="field-grid two-up">
+              <label class="field">
+                <span>Amount (optional)</span>
+                <input id="amount-value" name="amountValue" type="number" min="0" step="0.1" placeholder="Leave blank if unknown" />
+              </label>
+
+              <label class="field">
+                <span>Unit</span>
+                <select id="amount-unit" name="amountUnit">
+                  <option value="oz">oz</option>
+                  <option value="ml">mL</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="field-grid two-up">
+            <label class="field">
+              <span>Day</span>
+              <input id="event-date" name="eventDate" type="date" />
+            </label>
+
+            <label class="field">
+              <span>Time</span>
+              <input id="event-time" name="eventTime" type="time" step="60" />
+            </label>
+          </div>
+
+          <p id="amount-help" class="muted">
+            Use amount for formula, colostrum, or stored breast milk. For direct breastfeeding, leave it blank if you do not know.
+          </p>
+          <p id="arlo-error" class="form-error hidden" role="alert"></p>
+
+          <div class="action-row">
+            <button class="solid-button" type="submit">Save event</button>
+            <a class="ghost-button nav-link" href="/">Back to names</a>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="section-label">Today</p>
+            <h2>Quick summary</h2>
+          </div>
+          <span id="arlo-summary-date" class="pill">Today</span>
+        </div>
+        <div id="arlo-summary" class="field-grid two-up"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="section-label">Recent events</p>
+            <h2>Latest log</h2>
+          </div>
+          <span class="pill">Newest first</span>
+        </div>
+        <ol id="arlo-event-list" class="ranking-list"></ol>
+      </section>
+    </main>
+
+    <script src="/static/arlo.js"></script>
+  </body>
+</html>

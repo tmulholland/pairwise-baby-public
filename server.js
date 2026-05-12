@@ -11,6 +11,7 @@ const DEFAULT_USER = 'guest';
 const SHOWTIME_DEFAULT_USER = 'guest';
 const FINALE_DEFAULT_USER = 'guest';
 const FINALE_LAST_NAME = 'Mulholland';
+const ARLO_LOG_LIMIT = 60;
 const SUMMARY_REFRESH_INTERVAL_MS = 1000 * 60 * 60 * 24 * 30;
 const SUMMARY_FETCH_DELAY_MS = 250;
 const app = express();
@@ -23,6 +24,7 @@ let isRefreshingSummaries = false;
 initializeDatabase();
 initializeShowtimeDatabase();
 initializeFinaleDatabase();
+initializeArloDatabase();
 queueSummaryRefreshForAllNames();
 void initializeSsaPopularity(db);
 void initializeBtnMetadata(db);
@@ -60,6 +62,10 @@ app.get('/finale/results', (_req, res) => {
 
 app.get('/finale/combined', (_req, res) => {
   res.sendFile(path.join(__dirname, 'finale-combined.html'));
+});
+
+app.get('/arlo', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'arlo.html'));
 });
 
 app.get('/results', (_req, res) => {
@@ -119,6 +125,14 @@ app.get('/api/finale/combined', (req, res) => {
   try {
     ensureFinaleRatingsForAllUsers();
     res.json(buildFinaleCombinedState(req.query.users));
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.get('/api/arlo', (_req, res) => {
+  try {
+    res.json(buildArloState());
   } catch (error) {
     handleError(res, error);
   }
@@ -347,6 +361,15 @@ app.post('/api/finale/comparisons', (req, res) => {
   }
 });
 
+app.post('/api/arlo/events', (req, res) => {
+  try {
+    recordArloEvent(req.body || {});
+    res.status(201).json(buildArloState());
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.get('/showtime/:userSlug', (_req, res) => {
   res.sendFile(path.join(__dirname, 'showtime.html'));
 });
@@ -510,6 +533,25 @@ function initializeFinaleDatabase() {
   `);
 
   ensureFinaleUser(FINALE_DEFAULT_USER);
+}
+
+function initializeArloDatabase() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS arlo_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      activity_type TEXT NOT NULL,
+      event_date TEXT NOT NULL,
+      event_time TEXT NOT NULL,
+      amount_value REAL,
+      amount_unit TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  const columns = new Set(db.prepare('PRAGMA table_info(arlo_events)').all().map((column) => column.name));
+  if (!columns.has('amount_unit')) {
+    db.exec('ALTER TABLE arlo_events ADD COLUMN amount_unit TEXT');
+  }
 }
 
 function ensureNameSummaryColumns() {
@@ -1364,6 +1406,137 @@ function buildFinaleFullName(firstName, middleName) {
 
 function getFinaleCombinationKey(firstNameId, middleNameId) {
   return `${firstNameId}:${middleNameId}`;
+}
+
+function buildArloState() {
+  const recentEvents = db.prepare(`
+    SELECT id, activity_type, event_date, event_time, amount_value, amount_unit, created_at
+    FROM arlo_events
+    ORDER BY event_date DESC, event_time DESC, id DESC
+    LIMIT ?
+  `).all(ARLO_LOG_LIMIT).map((row) => ({
+    id: row.id,
+    activityType: row.activity_type,
+    eventDate: row.event_date,
+    eventTime: row.event_time,
+    amountValue: row.amount_value,
+    amountUnit: row.amount_unit || '',
+    createdAt: row.created_at,
+  }));
+
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const todayCountsRows = db.prepare(`
+    SELECT activity_type, COUNT(*) AS count
+    FROM arlo_events
+    WHERE event_date = ?
+    GROUP BY activity_type
+  `).all(today);
+  const todayCounts = Object.fromEntries(todayCountsRows.map((row) => [row.activity_type, row.count]));
+  const todayFeedAmounts = db.prepare(`
+    SELECT activity_type, amount_unit, SUM(amount_value) AS total_amount
+    FROM arlo_events
+    WHERE event_date = ?
+      AND amount_value IS NOT NULL
+      AND activity_type IN ('stored-breast-milk', 'colostrum', 'formula')
+    GROUP BY activity_type, amount_unit
+  `).all(today).map((row) => ({
+    activityType: row.activity_type,
+    totalAmount: row.total_amount,
+    amountUnit: row.amount_unit || '',
+  }));
+
+  return {
+    lastName: FINALE_LAST_NAME,
+    recentEvents,
+    todaySummary: {
+      date: today,
+      counts: todayCounts,
+      feedAmounts: todayFeedAmounts,
+    },
+  };
+}
+
+function recordArloEvent(payload) {
+  const activityType = normalizeArloActivityType(payload.activityType);
+  const eventDate = normalizeEventDate(payload.eventDate);
+  const eventTime = normalizeEventTime(payload.eventTime);
+  const amountValue = normalizeArloAmount(payload.amountValue, activityType);
+  const amountUnit = normalizeArloAmountUnit(payload.amountUnit, amountValue);
+
+  db.prepare(`
+    INSERT INTO arlo_events (activity_type, event_date, event_time, amount_value, amount_unit)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(activityType, eventDate, eventTime, amountValue, amountUnit);
+}
+
+function normalizeArloActivityType(value) {
+  const normalized = String(value || '').trim();
+  const allowed = new Set([
+    'breastfeeding',
+    'stored-breast-milk',
+    'colostrum',
+    'formula',
+    'poop-diaper',
+    'pee-diaper',
+    'both-diaper',
+  ]);
+
+  if (!allowed.has(normalized)) {
+    throw new Error('Choose a valid Arlo activity.');
+  }
+
+  return normalized;
+}
+
+function normalizeEventDate(value) {
+  const normalized = String(value || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    throw new Error('Choose a valid day.');
+  }
+
+  return normalized;
+}
+
+function normalizeEventTime(value) {
+  const normalized = String(value || '').trim();
+  if (!/^\d{2}:\d{2}$/.test(normalized)) {
+    throw new Error('Choose a valid time.');
+  }
+
+  return normalized;
+}
+
+function normalizeArloAmount(value, activityType) {
+  const requiresNoAmount = new Set(['poop-diaper', 'pee-diaper', 'both-diaper']);
+  const raw = String(value ?? '').trim();
+
+  if (requiresNoAmount.has(activityType)) {
+    return null;
+  }
+
+  if (!raw) {
+    return null;
+  }
+
+  const amount = Number(raw);
+  if (!Number.isFinite(amount) || amount < 0) {
+    throw new Error('Enter a valid amount or leave it blank.');
+  }
+
+  return amount;
+}
+
+function normalizeArloAmountUnit(value, amountValue) {
+  if (amountValue === null) {
+    return null;
+  }
+
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!['oz', 'ml'].includes(normalized)) {
+    throw new Error('Choose a valid amount unit.');
+  }
+
+  return normalized;
 }
 
 function resolveSelectedSlugs(rawSelectedUsers, users) {
