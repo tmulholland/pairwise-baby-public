@@ -76,7 +76,24 @@
 
           <label id="poop-color-field" class="field">
             <span>Poop color</span>
-            <input id="poop-color" name="poopColor" type="text" maxlength="40" placeholder="Optional, e.g. mustard yellow" />
+            <select id="poop-color" name="poopColor">
+              <option value="Meconium">Meconium</option>
+              <option value="Mustard Yellow">Mustard Yellow</option>
+              <option value="Green">Green</option>
+              <option value="Brown">Brown</option>
+              <option value="Tan">Tan</option>
+              <option value="Bright Green">Bright Green</option>
+              <option value="Orange">Orange</option>
+              <option value="Yellow">Yellow</option>
+              <option value="Red" class="warning-option">Red</option>
+              <option value="White" class="warning-option">White</option>
+              <option value="Gray" class="warning-option">Gray</option>
+              <option value="Clay" class="warning-option">Clay</option>
+              <option value="Black" class="warning-option">Black</option>
+            </select>
+            <span id="poop-color-warning" class="form-warning hidden">
+              This color can be a problem. Call the doctor.
+            </span>
           </label>
 
           <p id="amount-help" class="muted">

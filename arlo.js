@@ -5,6 +5,7 @@ const elements = {
   amountUnit: document.querySelector('#amount-unit'),
   poopColorField: document.querySelector('#poop-color-field'),
   poopColor: document.querySelector('#poop-color'),
+  poopColorWarning: document.querySelector('#poop-color-warning'),
   amountHelp: document.querySelector('#amount-help'),
   eventDate: document.querySelector('#event-date'),
   eventTime: document.querySelector('#event-time'),
@@ -32,6 +33,7 @@ function initializeDefaults() {
 function bindEvents() {
   elements.form.addEventListener('submit', handleSubmit);
   elements.activityType.addEventListener('change', handleActivityChange);
+  elements.poopColor.addEventListener('change', syncPoopColorWarning);
 }
 
 async function loadState() {
@@ -147,7 +149,7 @@ function renderEvents() {
     meta.className = 'ranking-score';
     actions.className = 'arlo-log-actions';
     deleteButton.type = 'button';
-    deleteButton.className = 'name-delete-button';
+    deleteButton.className = 'arlo-delete-button';
     deleteButton.textContent = 'Delete';
     deleteButton.addEventListener('click', () => {
       deleteEvent(entry.id);
@@ -286,14 +288,17 @@ function syncAmountState() {
   }
 
   if (!supportsPoopColor) {
-    elements.poopColor.value = '';
+    elements.poopColor.value = 'Meconium';
   }
+
+  syncPoopColorWarning();
 }
 
 function resetAfterSubmit() {
   applyDefaultDateTimeForActivity();
   elements.amountValue.value = '';
   elements.amountUnit.value = 'ml';
+  elements.poopColor.value = 'Meconium';
   syncAmountState();
 }
 
@@ -308,6 +313,13 @@ function applyDefaultDateTimeForActivity() {
   const defaultTime = isDiaper ? now : new Date(now.getTime() - 15 * 60 * 1000);
   elements.eventDate.value = formatDateLocal(now);
   elements.eventTime.value = formatTimeLocal(defaultTime);
+}
+
+function syncPoopColorWarning() {
+  const warningColors = new Set(['Red', 'White', 'Gray', 'Clay', 'Black']);
+  const showWarning = !elements.poopColor.disabled && warningColors.has(elements.poopColor.value);
+  elements.poopColor.classList.toggle('warning-select', showWarning);
+  elements.poopColorWarning.classList.toggle('hidden', !showWarning);
 }
 
 function formatDateLocal(date) {

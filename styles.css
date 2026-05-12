@@ -83,6 +83,11 @@ input:disabled {
   font-weight: 700;
 }
 
+.form-warning {
+  color: #a12828;
+  font-weight: 700;
+}
+
 .hero {
   padding: 24px 8px 28px;
 }
@@ -689,6 +694,33 @@ code {
   background: rgba(255, 250, 243, 0.78);
   border: 1px solid var(--line);
   font-weight: 700;
+}
+
+.arlo-log-actions {
+  display: inline-flex;
+  justify-content: flex-end;
+}
+
+.arlo-delete-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: rgba(98, 87, 79, 0.72);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 0.14em;
+}
+
+.arlo-delete-button:hover {
+  color: var(--accent-dark);
+}
+
+.warning-select {
+  border-color: rgba(161, 40, 40, 0.5);
+  color: #8d2020;
+  background: rgba(255, 238, 238, 0.92);
 }
 
 .finale-choice-card {
