@@ -139,7 +139,7 @@ function renderEvents() {
     title.className = 'ranking-name';
     meta.className = 'ranking-score';
     title.textContent = buildEventTitle(entry);
-    meta.textContent = `${entry.eventDate} at ${entry.eventTime}`;
+    meta.textContent = `${entry.eventDate} at ${formatDisplayTime(entry.eventTime)}`;
     item.append(title, meta);
     elements.eventList.append(item);
   }
@@ -174,6 +174,19 @@ function formatAmount(value, unit) {
   return `${normalized} ${unit}`;
 }
 
+function formatDisplayTime(value) {
+  const match = String(value || '').match(/^(\d{2}):(\d{2})$/);
+  if (!match) {
+    return String(value || '');
+  }
+
+  const hours24 = Number(match[1]);
+  const minutes = match[2];
+  const suffix = hours24 >= 12 ? 'pm' : 'am';
+  const hours12 = hours24 % 12 || 12;
+  return `${hours12}:${minutes} ${suffix}`;
+}
+
 function getCount(activityType) {
   return Number(state.todaySummary?.counts?.[activityType] || 0);
 }
@@ -198,7 +211,7 @@ function resetAfterSubmit() {
   elements.eventDate.value = formatDateLocal(now);
   elements.eventTime.value = formatTimeLocal(fifteenMinutesAgo);
   elements.amountValue.value = '';
-  elements.amountUnit.value = 'oz';
+  elements.amountUnit.value = 'ml';
   syncAmountState();
 }
 

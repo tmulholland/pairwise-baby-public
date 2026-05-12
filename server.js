@@ -1424,7 +1424,7 @@ function buildArloState() {
     createdAt: row.created_at,
   }));
 
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const today = formatDateInTimeZone(new Date(), 'America/Chicago');
   const todayCountsRows = db.prepare(`
     SELECT activity_type, COUNT(*) AS count
     FROM arlo_events
@@ -1537,6 +1537,18 @@ function normalizeArloAmountUnit(value, amountValue) {
   }
 
   return normalized;
+}
+
+function formatDateInTimeZone(date, timeZone) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = formatter.formatToParts(date);
+  const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${lookup.year}-${lookup.month}-${lookup.day}`;
 }
 
 function resolveSelectedSlugs(rawSelectedUsers, users) {
