@@ -106,7 +106,7 @@ function renderSummary() {
     const parts = [`${getCount(activityType)} ${label}`];
 
     if (latest) {
-      parts.push(`latest ${formatDisplayTime(latest)}`);
+      parts.push(`${formatElapsedSince(state.todaySummary.date, latest)} ago`);
     }
 
     if (totalAmount) {
@@ -204,6 +204,34 @@ function getFeedAmount(activityType) {
   }
 
   return formatAmount(row.totalAmount, row.amountUnit);
+}
+
+function formatElapsedSince(eventDate, eventTime) {
+  const match = String(eventTime || '').match(/^(\d{2}):(\d{2})$/);
+  if (!match || !eventDate) {
+    return 'latest recently';
+  }
+
+  const eventAt = new Date(`${eventDate}T${match[1]}:${match[2]}:00`);
+  const elapsedMs = Date.now() - eventAt.getTime();
+
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) {
+    return 'latest recently';
+  }
+
+  const totalMinutes = Math.floor(elapsedMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours <= 0) {
+    return `${minutes} min`;
+  }
+
+  if (minutes === 0) {
+    return `${hours} hr`;
+  }
+
+  return `${hours} hr ${minutes} min`;
 }
 
 function syncAmountState() {
