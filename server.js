@@ -1432,6 +1432,20 @@ function buildArloState() {
     GROUP BY activity_type
   `).all(today);
   const todayCounts = Object.fromEntries(todayCountsRows.map((row) => [row.activity_type, row.count]));
+  const todayLatestRows = db.prepare(`
+    SELECT activity_type, event_time
+    FROM arlo_events
+    WHERE event_date = ?
+      AND id IN (
+        SELECT id
+        FROM arlo_events latest
+        WHERE latest.event_date = arlo_events.event_date
+          AND latest.activity_type = arlo_events.activity_type
+        ORDER BY latest.event_time DESC, latest.id DESC
+        LIMIT 1
+      )
+  `).all(today);
+  const latestByActivity = Object.fromEntries(todayLatestRows.map((row) => [row.activity_type, row.event_time]));
   const todayFeedAmounts = db.prepare(`
     SELECT activity_type, amount_unit, SUM(amount_value) AS total_amount
     FROM arlo_events
@@ -1451,6 +1465,7 @@ function buildArloState() {
     todaySummary: {
       date: today,
       counts: todayCounts,
+      latestByActivity,
       feedAmounts: todayFeedAmounts,
     },
   };

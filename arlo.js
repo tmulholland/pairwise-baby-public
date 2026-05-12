@@ -23,16 +23,13 @@ bindEvents();
 loadState();
 
 function initializeDefaults() {
-  const now = new Date();
-  const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
-  elements.eventDate.value = formatDateLocal(now);
-  elements.eventTime.value = formatTimeLocal(fifteenMinutesAgo);
+  applyDefaultDateTimeForActivity();
   syncAmountState();
 }
 
 function bindEvents() {
   elements.form.addEventListener('submit', handleSubmit);
-  elements.activityType.addEventListener('change', syncAmountState);
+  elements.activityType.addEventListener('change', handleActivityChange);
 }
 
 async function loadState() {
@@ -92,19 +89,22 @@ function renderSummary() {
 
   elements.summaryDate.textContent = state.todaySummary.date;
   const summaryItems = [
-    `${getCount('breastfeeding')} breastfeeding`,
-    `${getCount('stored-breast-milk')} stored milk`,
-    `${getCount('colostrum')} colostrum`,
-    `${getCount('formula')} formula`,
-    `${getCount('poop-diaper')} poop diapers`,
-    `${getCount('pee-diaper')} pee diapers`,
-    `${getCount('both-diaper')} both diapers`,
+    ['breastfeeding', 'breastfeeding'],
+    ['stored-breast-milk', 'stored milk'],
+    ['colostrum', 'colostrum'],
+    ['formula', 'formula'],
+    ['poop-diaper', 'poop diapers'],
+    ['pee-diaper', 'pee diapers'],
+    ['both-diaper', 'both diapers'],
   ];
 
-  for (const text of summaryItems) {
+  for (const [activityType, label] of summaryItems) {
     const card = document.createElement('div');
     card.className = 'summary-card';
-    card.textContent = text;
+    const latest = getLatestTime(activityType);
+    card.textContent = latest
+      ? `${getCount(activityType)} ${label} • latest ${formatDisplayTime(latest)}`
+      : `${getCount(activityType)} ${label}`;
     elements.summary.append(card);
   }
 
@@ -191,6 +191,10 @@ function getCount(activityType) {
   return Number(state.todaySummary?.counts?.[activityType] || 0);
 }
 
+function getLatestTime(activityType) {
+  return state.todaySummary?.latestByActivity?.[activityType] || '';
+}
+
 function syncAmountState() {
   const diaperActivities = new Set(['poop-diaper', 'pee-diaper', 'both-diaper']);
   const isDiaper = diaperActivities.has(elements.activityType.value);
@@ -206,13 +210,23 @@ function syncAmountState() {
 }
 
 function resetAfterSubmit() {
-  const now = new Date();
-  const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
-  elements.eventDate.value = formatDateLocal(now);
-  elements.eventTime.value = formatTimeLocal(fifteenMinutesAgo);
+  applyDefaultDateTimeForActivity();
   elements.amountValue.value = '';
   elements.amountUnit.value = 'ml';
   syncAmountState();
+}
+
+function handleActivityChange() {
+  applyDefaultDateTimeForActivity();
+  syncAmountState();
+}
+
+function applyDefaultDateTimeForActivity() {
+  const now = new Date();
+  const isDiaper = new Set(['poop-diaper', 'pee-diaper', 'both-diaper']).has(elements.activityType.value);
+  const defaultTime = isDiaper ? now : new Date(now.getTime() - 15 * 60 * 1000);
+  elements.eventDate.value = formatDateLocal(now);
+  elements.eventTime.value = formatTimeLocal(defaultTime);
 }
 
 function formatDateLocal(date) {
