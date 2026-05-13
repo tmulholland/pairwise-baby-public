@@ -337,7 +337,7 @@ function formatElapsedSince(eventDate, eventTime) {
   }
 
   const totalMinutes = Math.floor(elapsedMs / 60000);
-  if (totalMinutes >= 24 * 60) {
+  if (totalMinutes >= 12 * 60) {
     return '';
   }
 
