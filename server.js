@@ -554,6 +554,7 @@ function initializeArloDatabase() {
       amount_value REAL,
       amount_unit TEXT,
       poop_color TEXT,
+      vitamin_d INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
@@ -564,6 +565,9 @@ function initializeArloDatabase() {
   }
   if (!columns.has('poop_color')) {
     db.exec('ALTER TABLE arlo_events ADD COLUMN poop_color TEXT');
+  }
+  if (!columns.has('vitamin_d')) {
+    db.exec('ALTER TABLE arlo_events ADD COLUMN vitamin_d INTEGER NOT NULL DEFAULT 0');
   }
 }
 
@@ -1423,7 +1427,7 @@ function getFinaleCombinationKey(firstNameId, middleNameId) {
 
 function buildArloState() {
   const recentEvents = db.prepare(`
-    SELECT id, activity_type, event_date, event_time, amount_value, amount_unit, poop_color, created_at
+    SELECT id, activity_type, event_date, event_time, amount_value, amount_unit, poop_color, vitamin_d, created_at
     FROM arlo_events
     ORDER BY event_date DESC, event_time DESC, id DESC
     LIMIT ?
@@ -1435,6 +1439,7 @@ function buildArloState() {
     amountValue: row.amount_value,
     amountUnit: row.amount_unit || '',
     poopColor: row.poop_color || '',
+    vitaminD: Boolean(row.vitamin_d),
     createdAt: row.created_at,
   }));
 
@@ -1519,11 +1524,12 @@ function recordArloEvent(payload) {
   const amountValue = normalizeArloAmount(payload.amountValue, activityType);
   const amountUnit = normalizeArloAmountUnit(payload.amountUnit, amountValue);
   const poopColor = normalizePoopColor(payload.poopColor, activityType);
+  const vitaminD = normalizeVitaminD(payload.vitaminD, activityType);
 
   db.prepare(`
-    INSERT INTO arlo_events (activity_type, event_date, event_time, amount_value, amount_unit, poop_color)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(activityType, eventDate, eventTime, amountValue, amountUnit, poopColor);
+    INSERT INTO arlo_events (activity_type, event_date, event_time, amount_value, amount_unit, poop_color, vitamin_d)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(activityType, eventDate, eventTime, amountValue, amountUnit, poopColor, vitaminD ? 1 : 0);
 }
 
 function deleteArloEvent(eventId) {
@@ -1617,6 +1623,15 @@ function normalizePoopColor(value, activityType) {
 
   const normalized = String(value || '').trim();
   return normalized ? normalized.slice(0, 40) : null;
+}
+
+function normalizeVitaminD(value, activityType) {
+  const supportsVitaminD = new Set(['breastfeeding', 'stored-breast-milk', 'colostrum', 'formula']);
+  if (!supportsVitaminD.has(activityType)) {
+    return false;
+  }
+
+  return Boolean(value);
 }
 
 function formatDateInTimeZone(date, timeZone) {

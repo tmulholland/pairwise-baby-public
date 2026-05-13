@@ -6,6 +6,8 @@ const elements = {
   poopColorField: document.querySelector('#poop-color-field'),
   poopColor: document.querySelector('#poop-color'),
   poopColorWarning: document.querySelector('#poop-color-warning'),
+  vitaminDField: document.querySelector('#vitamin-d-field'),
+  vitaminD: document.querySelector('#vitamin-d'),
   amountHelp: document.querySelector('#amount-help'),
   eventDate: document.querySelector('#event-date'),
   eventTime: document.querySelector('#event-time'),
@@ -64,6 +66,7 @@ async function handleSubmit(event) {
         amountValue: elements.amountValue.value,
         amountUnit: elements.amountUnit.value,
         poopColor: elements.poopColor.value,
+        vitaminD: elements.vitaminD.checked,
         eventDate: elements.eventDate.value,
         eventTime: elements.eventTime.value,
       }),
@@ -272,11 +275,24 @@ async function deleteEvent(eventId) {
 function buildEventTitle(entry) {
   const label = formatActivityLabel(entry.activityType);
   if (entry.amountValue === null || entry.amountValue === undefined || entry.amountValue === '') {
-    return entry.poopColor ? `${label} • ${entry.poopColor}` : label;
+    const parts = [label];
+    if (entry.poopColor) {
+      parts.push(entry.poopColor);
+    }
+    if (entry.vitaminD) {
+      parts.push('vitamin D');
+    }
+    return parts.join(' • ');
   }
 
-  const amountPart = `${label} • ${formatAmount(entry.amountValue, entry.amountUnit || 'oz')}`;
-  return entry.poopColor ? `${amountPart} • ${entry.poopColor}` : amountPart;
+  const parts = [label, formatAmount(entry.amountValue, entry.amountUnit || 'oz')];
+  if (entry.poopColor) {
+    parts.push(entry.poopColor);
+  }
+  if (entry.vitaminD) {
+    parts.push('vitamin D');
+  }
+  return parts.join(' • ');
 }
 
 function formatActivityLabel(activityType) {
@@ -436,10 +452,13 @@ function syncAmountState() {
   const diaperActivities = new Set(['poop-diaper', 'pee-diaper', 'both-diaper']);
   const isDiaper = diaperActivities.has(elements.activityType.value);
   const supportsPoopColor = new Set(['poop-diaper', 'both-diaper']).has(elements.activityType.value);
+  const supportsVitaminD = new Set(['breastfeeding', 'stored-breast-milk', 'colostrum', 'formula']).has(elements.activityType.value);
   elements.amountValue.disabled = isDiaper;
   elements.amountUnit.disabled = isDiaper;
   elements.poopColorField.classList.toggle('hidden', !supportsPoopColor);
   elements.poopColor.disabled = !supportsPoopColor;
+  elements.vitaminDField.classList.toggle('hidden', !supportsVitaminD);
+  elements.vitaminD.disabled = !supportsVitaminD;
   elements.amountHelp.textContent = isDiaper
     ? 'Amount is only for feeding events.'
     : 'Use amount for formula, colostrum, or stored breast milk. For direct breastfeeding, leave it blank if you do not know.';
@@ -450,6 +469,10 @@ function syncAmountState() {
 
   if (!supportsPoopColor) {
     elements.poopColor.value = 'Meconium';
+  }
+
+  if (!supportsVitaminD) {
+    elements.vitaminD.checked = false;
   }
 
   syncPoopColorWarning();
