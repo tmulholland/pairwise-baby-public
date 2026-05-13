@@ -729,12 +729,12 @@ code {
 }
 
 .timeline-dot-breastfeeding {
-  background: #ffffff;
-  border: 1px solid rgba(98, 87, 79, 0.35);
+  background: #f3a9bf;
 }
 
 .timeline-dot-stored-milk {
-  background: #949494;
+  background: #ffffff;
+  border: 1px solid rgba(98, 87, 79, 0.35);
 }
 
 .timeline-dot-colostrum {
