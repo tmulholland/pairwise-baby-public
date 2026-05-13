@@ -706,9 +706,15 @@ code {
   height: 14px;
   border-radius: 999px;
   background:
-    linear-gradient(90deg, rgba(214, 177, 95, 0.14), rgba(180, 79, 51, 0.14)),
-    rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(98, 87, 79, 0.12);
+    repeating-linear-gradient(
+      90deg,
+      rgba(112, 122, 138, 0.18) 0,
+      rgba(112, 122, 138, 0.18) 18px,
+      rgba(170, 179, 194, 0.24) 18px,
+      rgba(170, 179, 194, 0.24) 36px
+    ),
+    linear-gradient(90deg, rgba(89, 98, 113, 0.24), rgba(122, 131, 145, 0.2));
+  border: 1px solid rgba(84, 93, 108, 0.2);
 }
 
 .summary-timeline-dot {
@@ -751,12 +757,12 @@ code {
   width: 10px;
   height: 10px;
   z-index: 1;
-  transform: translate(-58%, -50%);
+  transform: translate(-72%, -50%);
 }
 
 .timeline-dot-both-pee {
   z-index: 2;
-  transform: translate(-18%, -50%);
+  transform: translate(6%, -50%);
 }
 
 .arlo-summary-list {
