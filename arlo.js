@@ -139,12 +139,12 @@ function renderSummaries() {
       const totalAmount = getFeedAmount(summary, activityType);
       const parts = [`${getCount(summary, activityType)} ${activityLabel}`];
 
-      if (latest) {
-        parts.push(`${formatElapsedSince(summary.date, latest)} ago`);
-      }
-
       if (totalAmount) {
         parts.push(totalAmount);
+      }
+
+      if (latest) {
+        parts.push(`${formatElapsedSince(summary.date, latest)} ago`);
       }
 
       card.textContent = parts.join(' • ');
