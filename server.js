@@ -1476,6 +1476,20 @@ function buildArloDailySummary(date) {
       )
   `).all(date);
   const latestByActivity = Object.fromEntries(latestRows.map((row) => [row.activity_type, row.event_time]));
+  const eventTimesRows = db.prepare(`
+    SELECT activity_type, event_time
+    FROM arlo_events
+    WHERE event_date = ?
+    ORDER BY event_time ASC, id ASC
+  `).all(date);
+  const eventTimesByActivity = {};
+  for (const row of eventTimesRows) {
+    if (!eventTimesByActivity[row.activity_type]) {
+      eventTimesByActivity[row.activity_type] = [];
+    }
+
+    eventTimesByActivity[row.activity_type].push(row.event_time);
+  }
   const feedAmounts = db.prepare(`
     SELECT activity_type, amount_unit, SUM(amount_value) AS total_amount
     FROM arlo_events
@@ -1493,6 +1507,7 @@ function buildArloDailySummary(date) {
     date,
     counts,
     latestByActivity,
+    eventTimesByActivity,
     feedAmounts,
   };
 }

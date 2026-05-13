@@ -696,6 +696,32 @@ code {
   font-weight: 700;
 }
 
+.summary-card-text {
+  line-height: 1.45;
+}
+
+.summary-timeline {
+  position: relative;
+  margin-top: 10px;
+  height: 14px;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, rgba(214, 177, 95, 0.14), rgba(180, 79, 51, 0.14)),
+    rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(98, 87, 79, 0.12);
+}
+
+.summary-timeline-dot {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent-dark);
+  box-shadow: 0 0 0 2px rgba(255, 250, 243, 0.9);
+  transform: translate(-50%, -50%);
+}
+
 .arlo-summary-list {
   display: grid;
   gap: 18px;

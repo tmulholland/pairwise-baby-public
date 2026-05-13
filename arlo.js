@@ -137,6 +137,7 @@ function renderSummaries() {
       card.className = 'summary-card';
       const latest = getLatestTime(summary, activityType);
       const totalAmount = getFeedAmount(summary, activityType);
+      const eventTimes = getEventTimes(summary, activityType);
       const parts = [`${getCount(summary, activityType)} ${activityLabel}`];
 
       if (totalAmount) {
@@ -147,7 +148,15 @@ function renderSummaries() {
         parts.push(`${formatElapsedSince(summary.date, latest)} ago`);
       }
 
-      card.textContent = parts.join(' • ');
+      const text = document.createElement('div');
+      text.className = 'summary-card-text';
+      text.textContent = parts.join(' • ');
+      card.append(text);
+
+      if (eventTimes.length) {
+        card.append(renderSummaryTimeline(eventTimes));
+      }
+
       grid.append(card);
     }
 
@@ -278,6 +287,37 @@ function getFeedAmount(summary, activityType) {
   }
 
   return formatAmount(row.totalAmount, row.amountUnit);
+}
+
+function getEventTimes(summary, activityType) {
+  return summary?.eventTimesByActivity?.[activityType] || [];
+}
+
+function renderSummaryTimeline(eventTimes) {
+  const track = document.createElement('div');
+  track.className = 'summary-timeline';
+
+  for (const eventTime of eventTimes) {
+    const dot = document.createElement('span');
+    dot.className = 'summary-timeline-dot';
+    dot.style.left = `${getTimelinePercent(eventTime)}%`;
+    dot.title = formatDisplayTime(eventTime);
+    track.append(dot);
+  }
+
+  return track;
+}
+
+function getTimelinePercent(eventTime) {
+  const match = String(eventTime || '').match(/^(\d{2}):(\d{2})$/);
+  if (!match) {
+    return 0;
+  }
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const totalMinutes = hours * 60 + minutes;
+  return (totalMinutes / 1440) * 100;
 }
 
 function formatElapsedSince(eventDate, eventTime) {
