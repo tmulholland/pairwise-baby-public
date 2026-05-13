@@ -748,11 +748,15 @@ code {
 }
 
 .timeline-dot-both-poop {
-  transform: translate(-55%, -60%);
+  width: 10px;
+  height: 10px;
+  z-index: 1;
+  transform: translate(-58%, -50%);
 }
 
 .timeline-dot-both-pee {
-  transform: translate(-40%, -35%);
+  z-index: 2;
+  transform: translate(-18%, -50%);
 }
 
 .arlo-summary-list {
