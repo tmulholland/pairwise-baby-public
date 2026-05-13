@@ -1438,15 +1438,31 @@ function buildArloState() {
     createdAt: row.created_at,
   }));
 
-  const today = formatDateInTimeZone(new Date(), 'America/Chicago');
-  const todayCountsRows = db.prepare(`
+  const summaryDates = db.prepare(`
+    SELECT DISTINCT event_date
+    FROM arlo_events
+    ORDER BY event_date DESC
+    LIMIT 7
+  `).all().map((row) => row.event_date);
+  const summaries = summaryDates.map((date) => buildArloDailySummary(date));
+
+  return {
+    lastName: FINALE_LAST_NAME,
+    recentEvents,
+    todaySummary: summaries[0] || buildArloDailySummary(formatDateInTimeZone(new Date(), 'America/Chicago')),
+    summaries,
+  };
+}
+
+function buildArloDailySummary(date) {
+  const countsRows = db.prepare(`
     SELECT activity_type, COUNT(*) AS count
     FROM arlo_events
     WHERE event_date = ?
     GROUP BY activity_type
-  `).all(today);
-  const todayCounts = Object.fromEntries(todayCountsRows.map((row) => [row.activity_type, row.count]));
-  const todayLatestRows = db.prepare(`
+  `).all(date);
+  const counts = Object.fromEntries(countsRows.map((row) => [row.activity_type, row.count]));
+  const latestRows = db.prepare(`
     SELECT activity_type, event_time
     FROM arlo_events
     WHERE event_date = ?
@@ -1458,30 +1474,26 @@ function buildArloState() {
         ORDER BY latest.event_time DESC, latest.id DESC
         LIMIT 1
       )
-  `).all(today);
-  const latestByActivity = Object.fromEntries(todayLatestRows.map((row) => [row.activity_type, row.event_time]));
-  const todayFeedAmounts = db.prepare(`
+  `).all(date);
+  const latestByActivity = Object.fromEntries(latestRows.map((row) => [row.activity_type, row.event_time]));
+  const feedAmounts = db.prepare(`
     SELECT activity_type, amount_unit, SUM(amount_value) AS total_amount
     FROM arlo_events
     WHERE event_date = ?
       AND amount_value IS NOT NULL
       AND activity_type IN ('stored-breast-milk', 'colostrum', 'formula')
     GROUP BY activity_type, amount_unit
-  `).all(today).map((row) => ({
+  `).all(date).map((row) => ({
     activityType: row.activity_type,
     totalAmount: row.total_amount,
     amountUnit: row.amount_unit || '',
   }));
 
   return {
-    lastName: FINALE_LAST_NAME,
-    recentEvents,
-    todaySummary: {
-      date: today,
-      counts: todayCounts,
-      latestByActivity,
-      feedAmounts: todayFeedAmounts,
-    },
+    date,
+    counts,
+    latestByActivity,
+    feedAmounts,
   };
 }
 

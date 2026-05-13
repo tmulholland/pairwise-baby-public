@@ -12,13 +12,14 @@ const elements = {
   status: document.querySelector('#arlo-status'),
   error: document.querySelector('#arlo-error'),
   summaryDate: document.querySelector('#arlo-summary-date'),
-  summary: document.querySelector('#arlo-summary'),
+  summaryList: document.querySelector('#arlo-summary-list'),
   eventList: document.querySelector('#arlo-event-list'),
 };
 
 const state = {
   recentEvents: [],
   todaySummary: null,
+  summaries: [],
 };
 
 initializeDefaults();
@@ -79,48 +80,84 @@ async function handleSubmit(event) {
 function applyState(payload) {
   state.recentEvents = payload.recentEvents || [];
   state.todaySummary = payload.todaySummary || null;
-  renderSummary();
+  state.summaries = payload.summaries || [];
+  renderSummaries();
   renderEvents();
 }
 
-function renderSummary() {
-  elements.summary.innerHTML = '';
+function renderSummaries() {
+  elements.summaryList.innerHTML = '';
 
-  if (!state.todaySummary) {
-    elements.summaryDate.textContent = 'Today';
-    elements.summary.innerHTML = '<p class="muted">No summary yet.</p>';
+  if (!state.summaries.length) {
+    elements.summaryDate.textContent = 'Latest 7 days';
+    elements.summaryList.innerHTML = '<p class="muted">No summary yet.</p>';
     return;
   }
 
-  elements.summaryDate.textContent = state.todaySummary.date;
-  const summaryItems = [
-    ['breastfeeding', 'breastfeeding'],
-    ['stored-breast-milk', 'stored milk'],
-    ['colostrum', 'colostrum'],
-    ['formula', 'formula'],
-    ['poop-diaper', 'poop diapers'],
-    ['pee-diaper', 'pee diapers'],
-    ['both-diaper', 'both diapers'],
-  ];
+  elements.summaryDate.textContent = `${state.summaries.length} day${state.summaries.length === 1 ? '' : 's'} loaded`;
 
-  for (const [activityType, label] of summaryItems) {
-    const card = document.createElement('div');
-    card.className = 'summary-card';
-    const latest = getLatestTime(activityType);
-    const totalAmount = getFeedAmount(activityType);
-    const parts = [`${getCount(activityType)} ${label}`];
+  for (const summary of state.summaries) {
+    const section = document.createElement('section');
+    section.className = 'arlo-day-summary';
 
-    if (latest) {
-      parts.push(`${formatElapsedSince(state.todaySummary.date, latest)} ago`);
+    const header = document.createElement('div');
+    header.className = 'panel-header compact';
+
+    const titleWrap = document.createElement('div');
+    const label = document.createElement('p');
+    const title = document.createElement('h3');
+    label.className = 'section-label';
+    title.className = 'arlo-day-heading';
+    label.textContent = summary.date === formatDateLocal(new Date()) ? 'Today' : 'Day';
+    title.textContent = summary.date;
+    titleWrap.append(label, title);
+
+    const pill = document.createElement('span');
+    pill.className = 'pill';
+    pill.textContent = `${getSummaryTotal(summary)} event${getSummaryTotal(summary) === 1 ? '' : 's'}`;
+
+    header.append(titleWrap, pill);
+    section.append(header);
+
+    const grid = document.createElement('div');
+    grid.className = 'field-grid two-up';
+
+    const summaryItems = [
+      ['breastfeeding', 'breastfeeding'],
+      ['stored-breast-milk', 'stored milk'],
+      ['colostrum', 'colostrum'],
+      ['formula', 'formula'],
+      ['poop-diaper', 'poop diapers'],
+      ['pee-diaper', 'pee diapers'],
+      ['both-diaper', 'both diapers'],
+    ];
+
+    for (const [activityType, activityLabel] of summaryItems) {
+      const card = document.createElement('div');
+      card.className = 'summary-card';
+      const latest = getLatestTime(summary, activityType);
+      const totalAmount = getFeedAmount(summary, activityType);
+      const parts = [`${getCount(summary, activityType)} ${activityLabel}`];
+
+      if (latest) {
+        parts.push(`${formatElapsedSince(summary.date, latest)} ago`);
+      }
+
+      if (totalAmount) {
+        parts.push(totalAmount);
+      }
+
+      card.textContent = parts.join(' • ');
+      grid.append(card);
     }
 
-    if (totalAmount) {
-      parts.push(totalAmount);
-    }
-
-    card.textContent = parts.join(' • ');
-    elements.summary.append(card);
+    section.append(grid);
+    elements.summaryList.append(section);
   }
+}
+
+function getSummaryTotal(summary) {
+  return Object.values(summary.counts || {}).reduce((sum, count) => sum + Number(count || 0), 0);
 }
 
 function renderEvents() {
@@ -226,16 +263,16 @@ function formatDisplayTime(value) {
   return `${hours12}:${minutes} ${suffix}`;
 }
 
-function getCount(activityType) {
-  return Number(state.todaySummary?.counts?.[activityType] || 0);
+function getCount(summary, activityType) {
+  return Number(summary?.counts?.[activityType] || 0);
 }
 
-function getLatestTime(activityType) {
-  return state.todaySummary?.latestByActivity?.[activityType] || '';
+function getLatestTime(summary, activityType) {
+  return summary?.latestByActivity?.[activityType] || '';
 }
 
-function getFeedAmount(activityType) {
-  const row = (state.todaySummary?.feedAmounts || []).find((entry) => entry.activityType === activityType);
+function getFeedAmount(summary, activityType) {
+  const row = (summary?.feedAmounts || []).find((entry) => entry.activityType === activityType);
   if (!row) {
     return '';
   }

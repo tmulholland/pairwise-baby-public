@@ -696,6 +696,21 @@ code {
   font-weight: 700;
 }
 
+.arlo-summary-list {
+  display: grid;
+  gap: 18px;
+}
+
+.arlo-day-summary {
+  display: grid;
+  gap: 14px;
+  padding-top: 4px;
+}
+
+.arlo-day-heading {
+  margin: 0;
+}
+
 .arlo-log-actions {
   display: inline-flex;
   justify-content: flex-end;
