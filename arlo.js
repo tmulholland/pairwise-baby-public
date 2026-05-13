@@ -145,7 +145,10 @@ function renderSummaries() {
       }
 
       if (latest) {
-        parts.push(`${formatElapsedSince(summary.date, latest)} ago`);
+        const elapsed = formatElapsedSince(summary.date, latest);
+        if (elapsed) {
+          parts.push(`${elapsed} ago`);
+        }
       }
 
       const text = document.createElement('div');
@@ -323,17 +326,21 @@ function getTimelinePercent(eventTime) {
 function formatElapsedSince(eventDate, eventTime) {
   const match = String(eventTime || '').match(/^(\d{2}):(\d{2})$/);
   if (!match || !eventDate) {
-    return 'latest recently';
+    return '';
   }
 
   const eventAt = new Date(`${eventDate}T${match[1]}:${match[2]}:00`);
   const elapsedMs = Date.now() - eventAt.getTime();
 
   if (!Number.isFinite(elapsedMs) || elapsedMs < 0) {
-    return 'latest recently';
+    return '';
   }
 
   const totalMinutes = Math.floor(elapsedMs / 60000);
+  if (totalMinutes >= 24 * 60) {
+    return '';
+  }
+
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
 
