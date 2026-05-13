@@ -122,46 +122,8 @@ function renderSummaries() {
     const grid = document.createElement('div');
     grid.className = 'field-grid two-up';
 
-    const summaryItems = [
-      ['breastfeeding', 'breastfeeding'],
-      ['stored-breast-milk', 'stored milk'],
-      ['colostrum', 'colostrum'],
-      ['formula', 'formula'],
-      ['poop-diaper', 'poop diapers'],
-      ['pee-diaper', 'pee diapers'],
-      ['both-diaper', 'both diapers'],
-    ];
-
-    for (const [activityType, activityLabel] of summaryItems) {
-      const card = document.createElement('div');
-      card.className = 'summary-card';
-      const latest = getLatestTime(summary, activityType);
-      const totalAmount = getFeedAmount(summary, activityType);
-      const eventTimes = getEventTimes(summary, activityType);
-      const parts = [`${getCount(summary, activityType)} ${activityLabel}`];
-
-      if (totalAmount) {
-        parts.push(totalAmount);
-      }
-
-      if (latest) {
-        const elapsed = formatElapsedSince(summary.date, latest);
-        if (elapsed) {
-          parts.push(`${elapsed} ago`);
-        }
-      }
-
-      const text = document.createElement('div');
-      text.className = 'summary-card-text';
-      text.textContent = parts.join(' • ');
-      card.append(text);
-
-      if (eventTimes.length) {
-        card.append(renderSummaryTimeline(eventTimes));
-      }
-
-      grid.append(card);
-    }
+    grid.append(renderFeedingSummaryCard(summary));
+    grid.append(renderDiaperSummaryCard(summary));
 
     section.append(grid);
     elements.summaryList.append(section);
@@ -170,6 +132,81 @@ function renderSummaries() {
 
 function getSummaryTotal(summary) {
   return Object.values(summary.counts || {}).reduce((sum, count) => sum + Number(count || 0), 0);
+}
+
+function renderFeedingSummaryCard(summary) {
+  const activityTypes = ['breastfeeding', 'stored-breast-milk', 'colostrum', 'formula'];
+  const card = document.createElement('div');
+  card.className = 'summary-card';
+
+  const totalCount = activityTypes.reduce((sum, activityType) => sum + getCount(summary, activityType), 0);
+  const totalAmount = getCombinedFeedAmount(summary, ['stored-breast-milk', 'colostrum', 'formula']);
+  const latest = getLatestAcrossActivities(summary, activityTypes);
+  const parts = [`${totalCount} feeding${totalCount === 1 ? '' : 's'}`];
+
+  if (totalAmount) {
+    parts.push(totalAmount);
+  }
+
+  if (latest) {
+    const elapsed = formatElapsedSince(summary.date, latest);
+    if (elapsed) {
+      parts.push(`${elapsed} ago`);
+    }
+  }
+
+  const text = document.createElement('div');
+  text.className = 'summary-card-text';
+  text.textContent = parts.join(' • ');
+  card.append(text);
+
+  const events = buildTimelineEvents(summary, [
+    { activityType: 'breastfeeding', colorClass: 'timeline-dot-breastfeeding' },
+    { activityType: 'stored-breast-milk', colorClass: 'timeline-dot-stored-milk' },
+    { activityType: 'colostrum', colorClass: 'timeline-dot-colostrum' },
+    { activityType: 'formula', colorClass: 'timeline-dot-formula' },
+  ]);
+
+  if (events.length) {
+    card.append(renderSummaryTimeline(events));
+  }
+
+  return card;
+}
+
+function renderDiaperSummaryCard(summary) {
+  const activityTypes = ['poop-diaper', 'pee-diaper', 'both-diaper'];
+  const card = document.createElement('div');
+  card.className = 'summary-card';
+
+  const totalCount = activityTypes.reduce((sum, activityType) => sum + getCount(summary, activityType), 0);
+  const latest = getLatestAcrossActivities(summary, activityTypes);
+  const parts = [`${totalCount} diaper${totalCount === 1 ? '' : 's'}`];
+
+  if (latest) {
+    const elapsed = formatElapsedSince(summary.date, latest);
+    if (elapsed) {
+      parts.push(`${elapsed} ago`);
+    }
+  }
+
+  const text = document.createElement('div');
+  text.className = 'summary-card-text';
+  text.textContent = parts.join(' • ');
+  card.append(text);
+
+  const events = buildTimelineEvents(summary, [
+    { activityType: 'poop-diaper', colorClass: 'timeline-dot-poop' },
+    { activityType: 'pee-diaper', colorClass: 'timeline-dot-pee' },
+    { activityType: 'both-diaper', colorClass: 'timeline-dot-poop', variantClass: 'timeline-dot-both-poop' },
+    { activityType: 'both-diaper', colorClass: 'timeline-dot-pee', variantClass: 'timeline-dot-both-pee' },
+  ]);
+
+  if (events.length) {
+    card.append(renderSummaryTimeline(events));
+  }
+
+  return card;
 }
 
 function renderEvents() {
@@ -292,19 +329,59 @@ function getFeedAmount(summary, activityType) {
   return formatAmount(row.totalAmount, row.amountUnit);
 }
 
+function getCombinedFeedAmount(summary, activityTypes) {
+  const rows = (summary?.feedAmounts || []).filter((entry) => activityTypes.includes(entry.activityType));
+  if (!rows.length) {
+    return '';
+  }
+
+  const totalsByUnit = new Map();
+  for (const row of rows) {
+    const key = row.amountUnit || '';
+    totalsByUnit.set(key, (totalsByUnit.get(key) || 0) + Number(row.totalAmount || 0));
+  }
+
+  return [...totalsByUnit.entries()]
+    .map(([unit, total]) => formatAmount(total, unit))
+    .join(' + ');
+}
+
 function getEventTimes(summary, activityType) {
   return summary?.eventTimesByActivity?.[activityType] || [];
 }
 
-function renderSummaryTimeline(eventTimes) {
+function getLatestAcrossActivities(summary, activityTypes) {
+  const times = activityTypes
+    .map((activityType) => getLatestTime(summary, activityType))
+    .filter(Boolean)
+    .sort();
+  return times[times.length - 1] || '';
+}
+
+function buildTimelineEvents(summary, configs) {
+  const events = [];
+  for (const config of configs) {
+    for (const eventTime of getEventTimes(summary, config.activityType)) {
+      events.push({
+        eventTime,
+        colorClass: config.colorClass,
+        variantClass: config.variantClass || '',
+      });
+    }
+  }
+
+  return events.sort((left, right) => left.eventTime.localeCompare(right.eventTime));
+}
+
+function renderSummaryTimeline(events) {
   const track = document.createElement('div');
   track.className = 'summary-timeline';
 
-  for (const eventTime of eventTimes) {
+  for (const event of events) {
     const dot = document.createElement('span');
-    dot.className = 'summary-timeline-dot';
-    dot.style.left = `${getTimelinePercent(eventTime)}%`;
-    dot.title = formatDisplayTime(eventTime);
+    dot.className = `summary-timeline-dot ${event.colorClass}${event.variantClass ? ` ${event.variantClass}` : ''}`;
+    dot.style.left = `${getTimelinePercent(event.eventTime)}%`;
+    dot.title = formatDisplayTime(event.eventTime);
     track.append(dot);
   }
 

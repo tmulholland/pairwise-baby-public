@@ -722,6 +722,39 @@ code {
   transform: translate(-50%, -50%);
 }
 
+.timeline-dot-breastfeeding {
+  background: #ffffff;
+  border: 1px solid rgba(98, 87, 79, 0.35);
+}
+
+.timeline-dot-stored-milk {
+  background: #949494;
+}
+
+.timeline-dot-colostrum {
+  background: #e5c44e;
+}
+
+.timeline-dot-formula {
+  background: #97cf45;
+}
+
+.timeline-dot-poop {
+  background: #8b5a2b;
+}
+
+.timeline-dot-pee {
+  background: #f1d04d;
+}
+
+.timeline-dot-both-poop {
+  transform: translate(-55%, -60%);
+}
+
+.timeline-dot-both-pee {
+  transform: translate(-40%, -35%);
+}
+
 .arlo-summary-list {
   display: grid;
   gap: 18px;
