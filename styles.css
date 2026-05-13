@@ -757,12 +757,12 @@ code {
   width: 10px;
   height: 10px;
   z-index: 1;
-  transform: translate(-72%, -50%);
+  transform: translate(-88%, -50%);
 }
 
 .timeline-dot-both-pee {
   z-index: 2;
-  transform: translate(6%, -50%);
+  transform: translate(22%, -50%);
 }
 
 .arlo-summary-list {
