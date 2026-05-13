@@ -377,9 +377,10 @@ function getLatestAcrossActivities(summary, activityTypes) {
 function buildTimelineEvents(summary, configs) {
   const events = [];
   for (const config of configs) {
-    for (const eventTime of getEventTimes(summary, config.activityType)) {
+    for (const event of getEventTimes(summary, config.activityType)) {
       events.push({
-        eventTime,
+        eventTime: event.eventTime,
+        vitaminD: Boolean(event.vitaminD),
         colorClass: config.colorClass,
         variantClass: config.variantClass || '',
       });
@@ -397,7 +398,13 @@ function renderSummaryTimeline(events) {
     const dot = document.createElement('span');
     dot.className = `summary-timeline-dot ${event.colorClass}${event.variantClass ? ` ${event.variantClass}` : ''}`;
     dot.style.left = `${getTimelinePercent(event.eventTime)}%`;
-    dot.title = formatDisplayTime(event.eventTime);
+    if (event.vitaminD) {
+      dot.classList.add('summary-timeline-vitamin');
+      dot.textContent = 'V';
+    }
+    dot.title = event.vitaminD
+      ? `${formatDisplayTime(event.eventTime)} • vitamin D`
+      : formatDisplayTime(event.eventTime);
     track.append(dot);
   }
 
@@ -483,6 +490,7 @@ function resetAfterSubmit() {
   elements.amountValue.value = '';
   elements.amountUnit.value = 'ml';
   elements.poopColor.value = 'Meconium';
+  elements.vitaminD.checked = false;
   syncAmountState();
 }
 
