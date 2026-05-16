@@ -555,6 +555,7 @@ function initializeArloDatabase() {
       amount_unit TEXT,
       poop_color TEXT,
       vitamin_d INTEGER NOT NULL DEFAULT 0,
+      breast_side TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
@@ -568,6 +569,9 @@ function initializeArloDatabase() {
   }
   if (!columns.has('vitamin_d')) {
     db.exec('ALTER TABLE arlo_events ADD COLUMN vitamin_d INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!columns.has('breast_side')) {
+    db.exec('ALTER TABLE arlo_events ADD COLUMN breast_side TEXT');
   }
 }
 
@@ -1427,7 +1431,7 @@ function getFinaleCombinationKey(firstNameId, middleNameId) {
 
 function buildArloState() {
   const recentEvents = db.prepare(`
-    SELECT id, activity_type, event_date, event_time, amount_value, amount_unit, poop_color, vitamin_d, created_at
+    SELECT id, activity_type, event_date, event_time, amount_value, amount_unit, poop_color, vitamin_d, breast_side, created_at
     FROM arlo_events
     ORDER BY event_date DESC, event_time DESC, id DESC
     LIMIT ?
@@ -1440,6 +1444,7 @@ function buildArloState() {
     amountUnit: row.amount_unit || '',
     poopColor: row.poop_color || '',
     vitaminD: Boolean(row.vitamin_d),
+    breastSide: row.breast_side || '',
     createdAt: row.created_at,
   }));
 
@@ -1482,7 +1487,7 @@ function buildArloDailySummary(date) {
   `).all(date);
   const latestByActivity = Object.fromEntries(latestRows.map((row) => [row.activity_type, row.event_time]));
   const eventTimesRows = db.prepare(`
-    SELECT activity_type, event_time, vitamin_d
+    SELECT activity_type, event_time, vitamin_d, breast_side
     FROM arlo_events
     WHERE event_date = ?
     ORDER BY event_time ASC, id ASC
@@ -1496,6 +1501,7 @@ function buildArloDailySummary(date) {
     eventTimesByActivity[row.activity_type].push({
       eventTime: row.event_time,
       vitaminD: Boolean(row.vitamin_d),
+      breastSide: row.breast_side || '',
     });
   }
   const feedAmounts = db.prepare(`
@@ -1528,11 +1534,12 @@ function recordArloEvent(payload) {
   const amountUnit = normalizeArloAmountUnit(payload.amountUnit, amountValue);
   const poopColor = normalizePoopColor(payload.poopColor, activityType);
   const vitaminD = normalizeVitaminD(payload.vitaminD, activityType);
+  const breastSide = normalizeBreastSide(payload.breastSide, activityType);
 
   db.prepare(`
-    INSERT INTO arlo_events (activity_type, event_date, event_time, amount_value, amount_unit, poop_color, vitamin_d)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(activityType, eventDate, eventTime, amountValue, amountUnit, poopColor, vitaminD ? 1 : 0);
+    INSERT INTO arlo_events (activity_type, event_date, event_time, amount_value, amount_unit, poop_color, vitamin_d, breast_side)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(activityType, eventDate, eventTime, amountValue, amountUnit, poopColor, vitaminD ? 1 : 0, breastSide);
 }
 
 function deleteArloEvent(eventId) {
@@ -1635,6 +1642,24 @@ function normalizeVitaminD(value, activityType) {
   }
 
   return Boolean(value);
+}
+
+function normalizeBreastSide(value, activityType) {
+  if (activityType !== 'breastfeeding') {
+    return null;
+  }
+
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  const allowed = new Set(['left', 'right', 'both']);
+  if (!allowed.has(normalized)) {
+    throw new Error('Choose a valid breastfeeding side.');
+  }
+
+  return normalized;
 }
 
 function formatDateInTimeZone(date, timeZone) {

@@ -739,6 +739,17 @@ code {
   color: #1f1a17;
 }
 
+.summary-timeline-letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  font-size: 0.54rem;
+  font-weight: 800;
+  color: #1f1a17;
+}
+
 .timeline-dot-breastfeeding {
   background: #f3a9bf;
 }
@@ -778,9 +789,7 @@ code {
   width: 7px;
   height: 12px;
   border-radius: 0 999px 999px 0;
-  box-shadow:
-    2px 0 0 2px rgba(255, 250, 243, 0.9),
-    0 0 0 0 transparent;
+  box-shadow: none;
   transform: translate(0, -50%);
 }
 

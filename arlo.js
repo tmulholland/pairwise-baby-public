@@ -8,6 +8,8 @@ const elements = {
   poopColorWarning: document.querySelector('#poop-color-warning'),
   vitaminDField: document.querySelector('#vitamin-d-field'),
   vitaminD: document.querySelector('#vitamin-d'),
+  breastSideField: document.querySelector('#breast-side-field'),
+  breastSide: document.querySelector('#breast-side'),
   amountHelp: document.querySelector('#amount-help'),
   eventDate: document.querySelector('#event-date'),
   eventTime: document.querySelector('#event-time'),
@@ -67,6 +69,7 @@ async function handleSubmit(event) {
         amountUnit: elements.amountUnit.value,
         poopColor: elements.poopColor.value,
         vitaminD: elements.vitaminD.checked,
+        breastSide: elements.breastSide.value,
         eventDate: elements.eventDate.value,
         eventTime: elements.eventTime.value,
       }),
@@ -276,6 +279,9 @@ function buildEventTitle(entry) {
   const label = formatActivityLabel(entry.activityType);
   if (entry.amountValue === null || entry.amountValue === undefined || entry.amountValue === '') {
     const parts = [label];
+    if (entry.breastSide) {
+      parts.push(formatBreastSideLabel(entry.breastSide));
+    }
     if (entry.poopColor) {
       parts.push(entry.poopColor);
     }
@@ -286,6 +292,9 @@ function buildEventTitle(entry) {
   }
 
   const parts = [label, formatAmount(entry.amountValue, entry.amountUnit || 'oz')];
+  if (entry.breastSide) {
+    parts.push(formatBreastSideLabel(entry.breastSide));
+  }
   if (entry.poopColor) {
     parts.push(entry.poopColor);
   }
@@ -307,6 +316,16 @@ function formatActivityLabel(activityType) {
   };
 
   return labels[activityType] || activityType;
+}
+
+function formatBreastSideLabel(value) {
+  const labels = {
+    left: 'left',
+    right: 'right',
+    both: 'both',
+  };
+
+  return labels[value] || value;
 }
 
 function formatAmount(value, unit) {
@@ -381,6 +400,7 @@ function buildTimelineEvents(summary, configs) {
       events.push({
         eventTime: event.eventTime,
         vitaminD: Boolean(event.vitaminD),
+        breastSide: event.breastSide || '',
         colorClass: config.colorClass,
         variantClass: config.variantClass || '',
       });
@@ -401,10 +421,15 @@ function renderSummaryTimeline(events) {
     if (event.vitaminD) {
       dot.classList.add('summary-timeline-vitamin');
       dot.textContent = 'V';
+    } else if (event.breastSide) {
+      dot.classList.add('summary-timeline-letter');
+      dot.textContent = getBreastSideMarker(event.breastSide);
     }
     dot.title = event.vitaminD
       ? `${formatDisplayTime(event.eventTime)} • vitamin D`
-      : formatDisplayTime(event.eventTime);
+      : event.breastSide
+        ? `${formatDisplayTime(event.eventTime)} • ${formatBreastSideLabel(event.breastSide)}`
+        : formatDisplayTime(event.eventTime);
     track.append(dot);
   }
 
@@ -460,12 +485,15 @@ function syncAmountState() {
   const isDiaper = diaperActivities.has(elements.activityType.value);
   const supportsPoopColor = new Set(['poop-diaper', 'both-diaper']).has(elements.activityType.value);
   const supportsVitaminD = new Set(['breastfeeding', 'stored-breast-milk', 'colostrum', 'formula']).has(elements.activityType.value);
+  const supportsBreastSide = elements.activityType.value === 'breastfeeding';
   elements.amountValue.disabled = isDiaper;
   elements.amountUnit.disabled = isDiaper;
   elements.poopColorField.classList.toggle('hidden', !supportsPoopColor);
   elements.poopColor.disabled = !supportsPoopColor;
   elements.vitaminDField.classList.toggle('hidden', !supportsVitaminD);
   elements.vitaminD.disabled = !supportsVitaminD;
+  elements.breastSideField.classList.toggle('hidden', !supportsBreastSide);
+  elements.breastSide.disabled = !supportsBreastSide;
   elements.amountHelp.textContent = isDiaper
     ? 'Amount is only for feeding events.'
     : 'Use amount for formula, colostrum, or stored breast milk. For direct breastfeeding, leave it blank if you do not know.';
@@ -475,11 +503,15 @@ function syncAmountState() {
   }
 
   if (!supportsPoopColor) {
-    elements.poopColor.value = 'Meconium';
+    elements.poopColor.value = 'Mustard Yellow';
   }
 
   if (!supportsVitaminD) {
     elements.vitaminD.checked = false;
+  }
+
+  if (!supportsBreastSide) {
+    elements.breastSide.value = '';
   }
 
   syncPoopColorWarning();
@@ -489,8 +521,9 @@ function resetAfterSubmit() {
   applyDefaultDateTimeForActivity();
   elements.amountValue.value = '';
   elements.amountUnit.value = 'ml';
-  elements.poopColor.value = 'Meconium';
+  elements.poopColor.value = 'Mustard Yellow';
   elements.vitaminD.checked = false;
+  elements.breastSide.value = '';
   syncAmountState();
 }
 
@@ -512,6 +545,16 @@ function syncPoopColorWarning() {
   const showWarning = !elements.poopColor.disabled && warningColors.has(elements.poopColor.value);
   elements.poopColor.classList.toggle('warning-select', showWarning);
   elements.poopColorWarning.classList.toggle('hidden', !showWarning);
+}
+
+function getBreastSideMarker(value) {
+  const markers = {
+    left: 'L',
+    right: 'R',
+    both: 'B',
+  };
+
+  return markers[value] || '';
 }
 
 function formatDateLocal(date) {

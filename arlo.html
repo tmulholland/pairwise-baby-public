@@ -78,7 +78,7 @@
             <span>Poop color</span>
             <select id="poop-color" name="poopColor">
               <option value="Meconium">Meconium</option>
-              <option value="Mustard Yellow">Mustard Yellow</option>
+              <option value="Mustard Yellow" selected>Mustard Yellow</option>
               <option value="Green">Green</option>
               <option value="Brown">Brown</option>
               <option value="Tan">Tan</option>
@@ -99,6 +99,16 @@
           <label id="vitamin-d-field" class="toggle-row">
             <input id="vitamin-d" name="vitaminD" type="checkbox" />
             <span>Supplemented with vitamin D</span>
+          </label>
+
+          <label id="breast-side-field" class="field hidden">
+            <span>Breast side</span>
+            <select id="breast-side" name="breastSide">
+              <option value="">Not tracked</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+              <option value="both">Both</option>
+            </select>
           </label>
 
           <p id="amount-help" class="muted">
