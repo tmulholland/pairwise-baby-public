@@ -20,11 +20,15 @@ const elements = {
   eventList: document.querySelector('#arlo-event-list'),
 };
 
+const POLL_INTERVAL_MS = 20000;
+
 const state = {
   recentEvents: [],
   todaySummary: null,
   summaries: [],
 };
+
+let pollTimer = null;
 
 initializeDefaults();
 bindEvents();
@@ -39,9 +43,11 @@ function bindEvents() {
   elements.form.addEventListener('submit', handleSubmit);
   elements.activityType.addEventListener('change', handleActivityChange);
   elements.poopColor.addEventListener('change', syncPoopColorWarning);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 }
 
 async function loadState() {
+  clearPollTimer();
   setStatus('Loading');
   showError('');
 
@@ -52,6 +58,8 @@ async function loadState() {
   } catch (error) {
     setStatus('Error');
     showError(error.message);
+  } finally {
+    scheduleNextPoll();
   }
 }
 
@@ -80,6 +88,8 @@ async function handleSubmit(event) {
   } catch (error) {
     setStatus('Error');
     showError(error.message);
+  } finally {
+    scheduleNextPoll();
   }
 }
 
@@ -272,6 +282,8 @@ async function deleteEvent(eventId) {
   } catch (error) {
     setStatus('Error');
     showError(error.message);
+  } finally {
+    scheduleNextPoll();
   }
 }
 
@@ -612,4 +624,34 @@ function setStatus(message) {
 function showError(message) {
   elements.error.textContent = message;
   elements.error.classList.toggle('hidden', !message);
+}
+
+function handleVisibilityChange() {
+  if (document.hidden) {
+    clearPollTimer();
+    return;
+  }
+
+  void loadState();
+}
+
+function scheduleNextPoll() {
+  clearPollTimer();
+
+  if (document.hidden) {
+    return;
+  }
+
+  pollTimer = window.setTimeout(() => {
+    void loadState();
+  }, POLL_INTERVAL_MS);
+}
+
+function clearPollTimer() {
+  if (pollTimer === null) {
+    return;
+  }
+
+  window.clearTimeout(pollTimer);
+  pollTimer = null;
 }
