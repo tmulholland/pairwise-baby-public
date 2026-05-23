@@ -6,6 +6,8 @@ const elements = {
   poopColorField: document.querySelector('#poop-color-field'),
   poopColor: document.querySelector('#poop-color'),
   poopColorWarning: document.querySelector('#poop-color-warning'),
+  shartField: document.querySelector('#shart-field'),
+  shart: document.querySelector('#shart'),
   vitaminDField: document.querySelector('#vitamin-d-field'),
   vitaminD: document.querySelector('#vitamin-d'),
   breastSideField: document.querySelector('#breast-side-field'),
@@ -76,6 +78,7 @@ async function handleSubmit(event) {
         amountValue: elements.amountValue.value,
         amountUnit: elements.amountUnit.value,
         poopColor: elements.poopColor.value,
+        shart: elements.shart.checked,
         vitaminD: elements.vitaminD.checked,
         breastSide: elements.breastSide.value,
         eventDate: elements.eventDate.value,
@@ -297,6 +300,9 @@ function buildEventTitle(entry) {
     if (entry.poopColor) {
       parts.push(entry.poopColor);
     }
+    if (entry.shart) {
+      parts.push('shart');
+    }
     if (entry.vitaminD) {
       parts.push('vitamin D');
     }
@@ -309,6 +315,9 @@ function buildEventTitle(entry) {
   }
   if (entry.poopColor) {
     parts.push(entry.poopColor);
+  }
+  if (entry.shart) {
+    parts.push('shart');
   }
   if (entry.vitaminD) {
     parts.push('vitamin D');
@@ -413,7 +422,10 @@ function buildTimelineEvents(summary, configs) {
         eventTime: event.eventTime,
         vitaminD: Boolean(event.vitaminD),
         breastSide: event.breastSide || '',
-        colorClass: config.colorClass,
+        shart: Boolean(event.shart),
+        colorClass: event.shart && config.colorClass === 'timeline-dot-poop'
+          ? 'timeline-dot-poop-shart'
+          : config.colorClass,
         variantClass: config.variantClass || '',
       });
     }
@@ -496,12 +508,15 @@ function syncAmountState() {
   const diaperActivities = new Set(['poop-diaper', 'pee-diaper', 'both-diaper']);
   const isDiaper = diaperActivities.has(elements.activityType.value);
   const supportsPoopColor = new Set(['poop-diaper', 'both-diaper']).has(elements.activityType.value);
+  const supportsShart = supportsPoopColor;
   const supportsVitaminD = new Set(['breastfeeding', 'stored-breast-milk', 'colostrum', 'formula']).has(elements.activityType.value);
   const supportsBreastSide = elements.activityType.value === 'breastfeeding';
   elements.amountValue.disabled = isDiaper;
   elements.amountUnit.disabled = isDiaper;
   elements.poopColorField.classList.toggle('hidden', !supportsPoopColor);
   elements.poopColor.disabled = !supportsPoopColor;
+  elements.shartField.classList.toggle('hidden', !supportsShart);
+  elements.shart.disabled = !supportsShart;
   elements.vitaminDField.classList.toggle('hidden', !supportsVitaminD);
   elements.vitaminD.disabled = !supportsVitaminD;
   elements.breastSideField.classList.toggle('hidden', !supportsBreastSide);
@@ -522,6 +537,10 @@ function syncAmountState() {
     elements.vitaminD.checked = false;
   }
 
+  if (!supportsShart) {
+    elements.shart.checked = false;
+  }
+
   if (!supportsBreastSide) {
     elements.breastSide.value = '';
   }
@@ -534,6 +553,7 @@ function resetAfterSubmit() {
   elements.amountValue.value = '';
   elements.amountUnit.value = 'ml';
   elements.poopColor.value = 'Mustard Yellow';
+  elements.shart.checked = false;
   elements.vitaminD.checked = false;
   elements.breastSide.value = '';
   syncAmountState();
