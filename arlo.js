@@ -154,12 +154,12 @@ function getSummaryTotal(summary) {
 }
 
 function renderFeedingSummaryCard(summary) {
-  const activityTypes = ['breastfeeding', 'stored-breast-milk', 'colostrum', 'formula'];
+  const activityTypes = ['breastfeeding', 'stored-breast-milk', 'colostrum', 'formula', 'gripe-water'];
   const card = document.createElement('div');
   card.className = 'summary-card';
 
   const totalCount = activityTypes.reduce((sum, activityType) => sum + getCount(summary, activityType), 0);
-  const totalAmount = getCombinedFeedAmount(summary, ['stored-breast-milk', 'colostrum', 'formula']);
+  const totalAmount = getCombinedFeedAmount(summary, ['stored-breast-milk', 'colostrum', 'formula', 'gripe-water']);
   const latest = getLatestAcrossActivities(summary, activityTypes);
   const parts = [`${totalCount} feeding${totalCount === 1 ? '' : 's'}`];
 
@@ -184,6 +184,7 @@ function renderFeedingSummaryCard(summary) {
     { activityType: 'stored-breast-milk', colorClass: 'timeline-dot-stored-milk' },
     { activityType: 'colostrum', colorClass: 'timeline-dot-colostrum' },
     { activityType: 'formula', colorClass: 'timeline-dot-formula' },
+    { activityType: 'gripe-water', colorClass: 'timeline-dot-gripe-water' },
   ]);
 
   if (events.length) {
@@ -331,6 +332,7 @@ function formatActivityLabel(activityType) {
     'stored-breast-milk': 'Stored breast milk',
     colostrum: 'Colostrum',
     formula: 'Formula',
+    'gripe-water': 'Gripe water',
     'poop-diaper': 'Poop diaper',
     'pee-diaper': 'Pee diaper',
     'both-diaper': 'Poop + pee diaper',
@@ -523,7 +525,7 @@ function syncAmountState() {
   elements.breastSide.disabled = !supportsBreastSide;
   elements.amountHelp.textContent = isDiaper
     ? 'Amount is only for feeding events.'
-    : 'Use amount for formula, colostrum, or stored breast milk. For direct breastfeeding, leave it blank if you do not know.';
+    : 'Use amount for formula, colostrum, stored breast milk, or gripe water. For direct breastfeeding, leave it blank if you do not know.';
 
   if (isDiaper) {
     elements.amountValue.value = '';

@@ -1515,7 +1515,7 @@ function buildArloDailySummary(date) {
     FROM arlo_events
     WHERE event_date = ?
       AND amount_value IS NOT NULL
-      AND activity_type IN ('stored-breast-milk', 'colostrum', 'formula')
+      AND activity_type IN ('stored-breast-milk', 'colostrum', 'formula', 'gripe-water')
     GROUP BY activity_type, amount_unit
   `).all(date).map((row) => ({
     activityType: row.activity_type,
@@ -1569,6 +1569,7 @@ function normalizeArloActivityType(value) {
     'stored-breast-milk',
     'colostrum',
     'formula',
+    'gripe-water',
     'poop-diaper',
     'pee-diaper',
     'both-diaper',
