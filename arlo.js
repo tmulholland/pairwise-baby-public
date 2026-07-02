@@ -42,6 +42,8 @@ const FEEDING_ACTIVITY_OPTIONS = [
 const CHART_METRIC_OPTIONS = [
   { key: 'feeds', label: 'Feeds/day' },
   { key: 'volume', label: 'mL/day' },
+  { key: 'poops', label: 'Poops/day' },
+  { key: 'pees', label: 'Pees/day' },
 ];
 const CHART_INFERENCE_OPTIONS = [
   { key: 'known', label: 'Known only' },
@@ -663,7 +665,7 @@ function renderChartControls() {
     state.chart.series = key;
     renderChartControls();
     renderChart();
-  });
+  }, state.chart.metric !== 'feeds' && state.chart.metric !== 'volume');
   renderChartButtonGroup(elements.chartInferredButtons, CHART_INFERENCE_OPTIONS, state.chart.inference, (key) => {
     state.chart.inference = key;
     renderChartControls();
@@ -699,7 +701,7 @@ function renderChart() {
   const maxValue = Math.max(...points.map((point) => point.value), 0);
   const color = getChartSeriesColor(state.chart.series);
   const label = getChartDisplayLabel();
-  const unit = state.chart.metric === 'feeds' ? 'feeds' : 'mL';
+  const unit = getChartUnit();
   const total = roundToOneDecimal(points.reduce((sum, point) => sum + point.value, 0));
 
   elements.chartCaption.textContent = `${label} over the last ${points.length} day${points.length === 1 ? '' : 's'} • ${formatChartTotal(total, unit)}`;
@@ -722,6 +724,14 @@ function getChartValue(summary) {
       return FEEDING_ACTIVITY_TYPES.reduce((sum, activityType) => sum + getCount(summary, activityType), 0);
     }
     return getCount(summary, state.chart.series);
+  }
+
+  if (state.chart.metric === 'poops') {
+    return getCount(summary, 'poop-diaper') + getCount(summary, 'both-diaper');
+  }
+
+  if (state.chart.metric === 'pees') {
+    return getCount(summary, 'pee-diaper') + getCount(summary, 'both-diaper');
   }
 
   if (state.chart.series === 'total') {
@@ -759,11 +769,27 @@ function getFeedVolumeMl(summary, activityType, includeInference) {
 }
 
 function getChartSeriesColor(seriesKey) {
+  if (state.chart.metric === 'poops') {
+    return '#8b5a2b';
+  }
+
+  if (state.chart.metric === 'pees') {
+    return '#f1d04d';
+  }
+
   const match = FEEDING_ACTIVITY_OPTIONS.find((option) => option.key === seriesKey);
   return match?.color || '#83361f';
 }
 
 function getChartDisplayLabel() {
+  if (state.chart.metric === 'poops') {
+    return 'Poops/day';
+  }
+
+  if (state.chart.metric === 'pees') {
+    return 'Pees/day';
+  }
+
   const metric = state.chart.metric === 'feeds' ? 'Feeds/day' : 'mL/day';
   const series = FEEDING_ACTIVITY_OPTIONS.find((option) => option.key === state.chart.series)?.label || 'Total';
   if (state.chart.metric === 'volume' && state.chart.inference === 'inferred') {
@@ -774,9 +800,22 @@ function getChartDisplayLabel() {
 
 function formatChartTotal(total, unit) {
   if (unit === 'feeds') {
-    return `${Math.round(total)} total feeds`;
+    const label = state.chart.metric === 'poops'
+      ? 'total poops'
+      : state.chart.metric === 'pees'
+        ? 'total pees'
+        : 'total feeds';
+    return `${Math.round(total)} ${label}`;
   }
   return `${formatAmountMl(total)} total`;
+}
+
+function getChartUnit() {
+  if (state.chart.metric === 'volume') {
+    return 'mL';
+  }
+
+  return 'feeds';
 }
 
 function buildChartSvg(points, maxValue, color, unit) {
@@ -785,11 +824,12 @@ function buildChartSvg(points, maxValue, color, unit) {
   const paddingLeft = 52;
   const paddingRight = 18;
   const paddingTop = 20;
-  const paddingBottom = 44;
+  const paddingBottom = points.length > 10 ? 72 : 52;
   const chartWidth = width - paddingLeft - paddingRight;
   const chartHeight = height - paddingTop - paddingBottom;
   const safeMax = maxValue > 0 ? maxValue : 1;
   const yTicks = buildYAxisTicks(safeMax);
+  const xLabelStep = getXAxisLabelStep(points.length);
 
   const coords = points.map((point, index) => {
     const x = points.length === 1
@@ -810,9 +850,22 @@ function buildChartSvg(points, maxValue, color, unit) {
       <text x="${paddingLeft - 10}" y="${y + 4}" class="arlo-chart-axis-label">${formatTickValue(tick, unit)}</text>`;
   }).join('');
 
-  const xLabels = coords.map((point) => `
-    <text x="${point.x}" y="${height - 16}" text-anchor="middle" class="arlo-chart-axis-label">${point.shortDate}</text>
-  `).join('');
+  const xLabels = coords.map((point, index) => {
+    if (index % xLabelStep !== 0 && index !== coords.length - 1) {
+      return '';
+    }
+
+    const rotate = points.length > 10;
+    if (rotate) {
+      return `
+        <text x="${point.x}" y="${height - 18}" text-anchor="end" transform="rotate(-45 ${point.x} ${height - 18})" class="arlo-chart-axis-label">${point.shortDate}</text>
+      `;
+    }
+
+    return `
+      <text x="${point.x}" y="${height - 16}" text-anchor="middle" class="arlo-chart-axis-label">${point.shortDate}</text>
+    `;
+  }).join('');
 
   const pointDots = coords.map((point) => `
     <circle cx="${point.x}" cy="${point.y}" r="4.5" fill="${color}">
@@ -842,6 +895,26 @@ function buildYAxisTicks(maxValue) {
     ticks.push((maxValue / steps) * index);
   }
   return ticks;
+}
+
+function getXAxisLabelStep(pointCount) {
+  if (pointCount <= 10) {
+    return 1;
+  }
+
+  if (pointCount <= 20) {
+    return 2;
+  }
+
+  if (pointCount <= 40) {
+    return 4;
+  }
+
+  if (pointCount <= 90) {
+    return 7;
+  }
+
+  return Math.ceil(pointCount / 12);
 }
 
 function formatTickValue(value, unit) {

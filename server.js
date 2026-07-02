@@ -1465,7 +1465,6 @@ function buildArloState() {
     SELECT DISTINCT event_date
     FROM arlo_events
     ORDER BY event_date DESC
-    LIMIT 30
   `).all().map((row) => row.event_date);
   const trendSummaries = trendDates.map((date) => buildArloDailySummary(date));
 
