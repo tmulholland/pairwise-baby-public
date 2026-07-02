@@ -24,12 +24,14 @@ const elements = {
   chartMetricButtons: document.querySelector('#arlo-chart-metric-buttons'),
   chartSeriesButtons: document.querySelector('#arlo-chart-series-buttons'),
   chartInferredButtons: document.querySelector('#arlo-chart-inferred-buttons'),
+  chartUnitButtons: document.querySelector('#arlo-chart-unit-buttons'),
   chartCaption: document.querySelector('#arlo-chart-caption'),
   chartSvg: document.querySelector('#arlo-chart-svg'),
   eventList: document.querySelector('#arlo-event-list'),
 };
 
 const POLL_INTERVAL_MS = 20000;
+const ML_PER_OUNCE = 29.5735;
 const FEEDING_ACTIVITY_TYPES = ['breastfeeding', 'stored-breast-milk', 'colostrum', 'formula', 'gripe-water'];
 const FEEDING_ACTIVITY_OPTIONS = [
   { key: 'total', label: 'Total', color: '#83361f' },
@@ -49,6 +51,10 @@ const CHART_INFERENCE_OPTIONS = [
   { key: 'known', label: 'Known only' },
   { key: 'inferred', label: 'Inferred' },
 ];
+const CHART_UNIT_OPTIONS = [
+  { key: 'ml', label: 'mL' },
+  { key: 'oz', label: 'oz' },
+];
 
 const state = {
   recentEvents: [],
@@ -60,6 +66,7 @@ const state = {
     metric: 'feeds',
     series: 'total',
     inference: 'known',
+    unit: 'ml',
   },
 };
 
@@ -422,7 +429,7 @@ function getFeedAmount(summary, activityType) {
     return '';
   }
 
-  return formatAmountMl(stats.totalAmountMl);
+  return formatVolumeAmount(stats.totalAmountMl);
 }
 
 function getCombinedFeedAmount(summary, activityTypes) {
@@ -433,7 +440,7 @@ function getCombinedFeedAmount(summary, activityTypes) {
     return '';
   }
 
-  return formatAmountMl(totalMl);
+  return formatVolumeAmount(totalMl);
 }
 
 function getEventTimes(summary, activityType) {
@@ -640,6 +647,16 @@ function formatAmountMl(value) {
   return formatAmount(roundToOneDecimal(value), 'mL');
 }
 
+function formatAmountOzFromMl(value) {
+  return formatAmount(roundToOneDecimal(Number(value || 0) / ML_PER_OUNCE), 'oz');
+}
+
+function formatVolumeAmount(valueMl) {
+  return state.chart.unit === 'oz'
+    ? formatAmountOzFromMl(valueMl)
+    : formatAmountMl(valueMl);
+}
+
 function roundToOneDecimal(value) {
   return Math.round(Number(value || 0) * 10) / 10;
 }
@@ -671,6 +688,12 @@ function renderChartControls() {
     renderChartControls();
     renderChart();
   }, state.chart.metric !== 'volume');
+  renderChartButtonGroup(elements.chartUnitButtons, CHART_UNIT_OPTIONS, state.chart.unit, (key) => {
+    state.chart.unit = key;
+    renderSummaries();
+    renderChartControls();
+    renderChart();
+  });
 }
 
 function renderChartButtonGroup(container, options, activeKey, onClick, disabled = false) {
@@ -790,7 +813,11 @@ function getChartDisplayLabel() {
     return 'Pees/day';
   }
 
-  const metric = state.chart.metric === 'feeds' ? 'Feeds/day' : 'mL/day';
+  const metric = state.chart.metric === 'feeds'
+    ? 'Feeds/day'
+    : state.chart.unit === 'oz'
+      ? 'oz/day'
+      : 'mL/day';
   const series = FEEDING_ACTIVITY_OPTIONS.find((option) => option.key === state.chart.series)?.label || 'Total';
   if (state.chart.metric === 'volume' && state.chart.inference === 'inferred') {
     return `${series} ${metric.toLowerCase()} inferred`;
@@ -807,12 +834,12 @@ function formatChartTotal(total, unit) {
         : 'total feeds';
     return `${Math.round(total)} ${label}`;
   }
-  return `${formatAmountMl(total)} total`;
+  return `${formatVolumeAmount(total)} total`;
 }
 
 function getChartUnit() {
   if (state.chart.metric === 'volume') {
-    return 'mL';
+    return state.chart.unit;
   }
 
   return 'feeds';
@@ -820,11 +847,11 @@ function getChartUnit() {
 
 function buildChartSvg(points, maxValue, color, unit) {
   const width = 720;
-  const height = 280;
+  const height = points.length > 10 ? 312 : 280;
   const paddingLeft = 52;
   const paddingRight = 18;
   const paddingTop = 20;
-  const paddingBottom = points.length > 10 ? 72 : 52;
+  const paddingBottom = points.length > 10 ? 96 : 52;
   const chartWidth = width - paddingLeft - paddingRight;
   const chartHeight = height - paddingTop - paddingBottom;
   const safeMax = maxValue > 0 ? maxValue : 1;
@@ -858,7 +885,7 @@ function buildChartSvg(points, maxValue, color, unit) {
     const rotate = points.length > 10;
     if (rotate) {
       return `
-        <text x="${point.x}" y="${height - 18}" text-anchor="end" transform="rotate(-45 ${point.x} ${height - 18})" class="arlo-chart-axis-label">${point.shortDate}</text>
+        <text x="${point.x}" y="${height - 28}" text-anchor="end" transform="rotate(-45 ${point.x} ${height - 28})" class="arlo-chart-axis-label">${point.shortDate}</text>
       `;
     }
 
@@ -921,7 +948,9 @@ function formatTickValue(value, unit) {
   if (unit === 'feeds') {
     return String(Math.round(value));
   }
-  return `${roundToOneDecimal(value)} mL`;
+  return unit === 'oz'
+    ? `${roundToOneDecimal(Number(value || 0) / ML_PER_OUNCE)} oz`
+    : `${roundToOneDecimal(value)} mL`;
 }
 
 function formatChartDate(value) {
