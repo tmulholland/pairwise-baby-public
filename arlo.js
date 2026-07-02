@@ -19,15 +19,46 @@ const elements = {
   error: document.querySelector('#arlo-error'),
   summaryDate: document.querySelector('#arlo-summary-date'),
   summaryList: document.querySelector('#arlo-summary-list'),
+  chartToggle: document.querySelector('#arlo-chart-toggle'),
+  chartPanel: document.querySelector('#arlo-chart-panel'),
+  chartMetricButtons: document.querySelector('#arlo-chart-metric-buttons'),
+  chartSeriesButtons: document.querySelector('#arlo-chart-series-buttons'),
+  chartInferredButtons: document.querySelector('#arlo-chart-inferred-buttons'),
+  chartCaption: document.querySelector('#arlo-chart-caption'),
+  chartSvg: document.querySelector('#arlo-chart-svg'),
   eventList: document.querySelector('#arlo-event-list'),
 };
 
 const POLL_INTERVAL_MS = 20000;
+const FEEDING_ACTIVITY_TYPES = ['breastfeeding', 'stored-breast-milk', 'colostrum', 'formula', 'gripe-water'];
+const FEEDING_ACTIVITY_OPTIONS = [
+  { key: 'total', label: 'Total', color: '#83361f' },
+  { key: 'breastfeeding', label: 'Breastfeeding', color: '#f3a9bf' },
+  { key: 'stored-breast-milk', label: 'Stored milk', color: '#6b7280' },
+  { key: 'colostrum', label: 'Colostrum', color: '#e5c44e' },
+  { key: 'formula', label: 'Formula', color: '#97cf45' },
+  { key: 'gripe-water', label: 'Gripe water', color: '#3b82f6' },
+];
+const CHART_METRIC_OPTIONS = [
+  { key: 'feeds', label: 'Feeds/day' },
+  { key: 'volume', label: 'mL/day' },
+];
+const CHART_INFERENCE_OPTIONS = [
+  { key: 'known', label: 'Known only' },
+  { key: 'inferred', label: 'Inferred' },
+];
 
 const state = {
   recentEvents: [],
   todaySummary: null,
   summaries: [],
+  trendSummaries: [],
+  chart: {
+    open: false,
+    metric: 'feeds',
+    series: 'total',
+    inference: 'known',
+  },
 };
 
 let pollTimer = null;
@@ -39,12 +70,15 @@ loadState();
 function initializeDefaults() {
   applyDefaultDateTimeForActivity();
   syncAmountState();
+  renderChartControls();
+  syncChartVisibility();
 }
 
 function bindEvents() {
   elements.form.addEventListener('submit', handleSubmit);
   elements.activityType.addEventListener('change', handleActivityChange);
   elements.poopColor.addEventListener('change', syncPoopColorWarning);
+  elements.chartToggle.addEventListener('click', toggleChartPanel);
   document.addEventListener('visibilitychange', handleVisibilityChange);
 }
 
@@ -100,7 +134,9 @@ function applyState(payload) {
   state.recentEvents = payload.recentEvents || [];
   state.todaySummary = payload.todaySummary || null;
   state.summaries = payload.summaries || [];
+  state.trendSummaries = payload.trendSummaries || payload.summaries || [];
   renderSummaries();
+  renderChart();
   renderEvents();
 }
 
@@ -154,7 +190,7 @@ function getSummaryTotal(summary) {
 }
 
 function renderFeedingSummaryCard(summary) {
-  const activityTypes = ['breastfeeding', 'stored-breast-milk', 'colostrum', 'formula', 'gripe-water'];
+  const activityTypes = FEEDING_ACTIVITY_TYPES;
   const card = document.createElement('div');
   card.className = 'summary-card';
 
@@ -379,29 +415,23 @@ function getLatestTime(summary, activityType) {
 }
 
 function getFeedAmount(summary, activityType) {
-  const row = (summary?.feedAmounts || []).find((entry) => entry.activityType === activityType);
-  if (!row) {
+  const stats = summary?.feedStats?.[activityType];
+  if (!stats || Number(stats.totalAmountMl || 0) <= 0) {
     return '';
   }
 
-  return formatAmount(row.totalAmount, row.amountUnit);
+  return formatAmountMl(stats.totalAmountMl);
 }
 
 function getCombinedFeedAmount(summary, activityTypes) {
-  const rows = (summary?.feedAmounts || []).filter((entry) => activityTypes.includes(entry.activityType));
-  if (!rows.length) {
+  const totalMl = activityTypes.reduce((sum, activityType) => {
+    return sum + Number(summary?.feedStats?.[activityType]?.totalAmountMl || 0);
+  }, 0);
+  if (totalMl <= 0) {
     return '';
   }
 
-  const totalsByUnit = new Map();
-  for (const row of rows) {
-    const key = row.amountUnit || '';
-    totalsByUnit.set(key, (totalsByUnit.get(key) || 0) + Number(row.totalAmount || 0));
-  }
-
-  return [...totalsByUnit.entries()]
-    .map(([unit, total]) => formatAmount(total, unit))
-    .join(' + ');
+  return formatAmountMl(totalMl);
 }
 
 function getEventTimes(summary, activityType) {
@@ -602,6 +632,231 @@ function formatTimeLocal(date) {
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
   return `${hours}:${minutes}`;
+}
+
+function formatAmountMl(value) {
+  return formatAmount(roundToOneDecimal(value), 'mL');
+}
+
+function roundToOneDecimal(value) {
+  return Math.round(Number(value || 0) * 10) / 10;
+}
+
+function toggleChartPanel() {
+  state.chart.open = !state.chart.open;
+  syncChartVisibility();
+  renderChart();
+}
+
+function syncChartVisibility() {
+  elements.chartPanel.classList.toggle('hidden', !state.chart.open);
+  elements.chartToggle.textContent = state.chart.open ? 'Hide charting' : 'Show charting';
+}
+
+function renderChartControls() {
+  renderChartButtonGroup(elements.chartMetricButtons, CHART_METRIC_OPTIONS, state.chart.metric, (key) => {
+    state.chart.metric = key;
+    renderChartControls();
+    renderChart();
+  });
+  renderChartButtonGroup(elements.chartSeriesButtons, FEEDING_ACTIVITY_OPTIONS, state.chart.series, (key) => {
+    state.chart.series = key;
+    renderChartControls();
+    renderChart();
+  });
+  renderChartButtonGroup(elements.chartInferredButtons, CHART_INFERENCE_OPTIONS, state.chart.inference, (key) => {
+    state.chart.inference = key;
+    renderChartControls();
+    renderChart();
+  }, state.chart.metric !== 'volume');
+}
+
+function renderChartButtonGroup(container, options, activeKey, onClick, disabled = false) {
+  container.innerHTML = '';
+  for (const option of options) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `ghost-button small${option.key === activeKey ? ' active-filter-button' : ''}`;
+    button.textContent = option.label;
+    button.disabled = disabled;
+    button.addEventListener('click', () => {
+      onClick(option.key);
+    });
+    container.append(button);
+  }
+}
+
+function renderChart() {
+  renderChartControls();
+
+  if (!state.trendSummaries.length) {
+    elements.chartCaption.textContent = 'No feeding trend yet.';
+    elements.chartSvg.innerHTML = '';
+    return;
+  }
+
+  const points = buildChartPoints();
+  const maxValue = Math.max(...points.map((point) => point.value), 0);
+  const color = getChartSeriesColor(state.chart.series);
+  const label = getChartDisplayLabel();
+  const unit = state.chart.metric === 'feeds' ? 'feeds' : 'mL';
+  const total = roundToOneDecimal(points.reduce((sum, point) => sum + point.value, 0));
+
+  elements.chartCaption.textContent = `${label} over the last ${points.length} day${points.length === 1 ? '' : 's'} • ${formatChartTotal(total, unit)}`;
+  elements.chartSvg.innerHTML = buildChartSvg(points, maxValue, color, unit);
+}
+
+function buildChartPoints() {
+  return [...state.trendSummaries]
+    .sort((left, right) => left.date.localeCompare(right.date))
+    .map((summary) => ({
+      date: summary.date,
+      shortDate: formatChartDate(summary.date),
+      value: getChartValue(summary),
+    }));
+}
+
+function getChartValue(summary) {
+  if (state.chart.metric === 'feeds') {
+    if (state.chart.series === 'total') {
+      return FEEDING_ACTIVITY_TYPES.reduce((sum, activityType) => sum + getCount(summary, activityType), 0);
+    }
+    return getCount(summary, state.chart.series);
+  }
+
+  if (state.chart.series === 'total') {
+    return getFeedVolumeMl(summary, null, state.chart.inference === 'inferred');
+  }
+
+  return getFeedVolumeMl(summary, state.chart.series, state.chart.inference === 'inferred');
+}
+
+function getFeedVolumeMl(summary, activityType, includeInference) {
+  const statsMap = summary?.feedStats || {};
+  const statsEntries = activityType
+    ? [[activityType, statsMap[activityType] || null]]
+    : Object.entries(statsMap);
+
+  let totalMl = 0;
+  let missingVolumeCount = 0;
+  for (const [, stats] of statsEntries) {
+    totalMl += Number(stats?.totalAmountMl || 0);
+    missingVolumeCount += Number(stats?.missingVolumeCount || 0);
+  }
+
+  if (!includeInference) {
+    return roundToOneDecimal(totalMl);
+  }
+
+  const knownTotalMl = Number(summary?.knownFeedVolumeMl || 0);
+  const knownVolumeFeedCount = Number(summary?.knownVolumeFeedCount || 0);
+  if (knownTotalMl <= 0 || knownVolumeFeedCount <= 0 || missingVolumeCount <= 0) {
+    return roundToOneDecimal(totalMl);
+  }
+
+  const averageMl = knownTotalMl / knownVolumeFeedCount;
+  return roundToOneDecimal(totalMl + averageMl * missingVolumeCount);
+}
+
+function getChartSeriesColor(seriesKey) {
+  const match = FEEDING_ACTIVITY_OPTIONS.find((option) => option.key === seriesKey);
+  return match?.color || '#83361f';
+}
+
+function getChartDisplayLabel() {
+  const metric = state.chart.metric === 'feeds' ? 'Feeds/day' : 'mL/day';
+  const series = FEEDING_ACTIVITY_OPTIONS.find((option) => option.key === state.chart.series)?.label || 'Total';
+  if (state.chart.metric === 'volume' && state.chart.inference === 'inferred') {
+    return `${series} ${metric.toLowerCase()} inferred`;
+  }
+  return `${series} ${metric.toLowerCase()}`;
+}
+
+function formatChartTotal(total, unit) {
+  if (unit === 'feeds') {
+    return `${Math.round(total)} total feeds`;
+  }
+  return `${formatAmountMl(total)} total`;
+}
+
+function buildChartSvg(points, maxValue, color, unit) {
+  const width = 720;
+  const height = 280;
+  const paddingLeft = 52;
+  const paddingRight = 18;
+  const paddingTop = 20;
+  const paddingBottom = 44;
+  const chartWidth = width - paddingLeft - paddingRight;
+  const chartHeight = height - paddingTop - paddingBottom;
+  const safeMax = maxValue > 0 ? maxValue : 1;
+  const yTicks = buildYAxisTicks(safeMax);
+
+  const coords = points.map((point, index) => {
+    const x = points.length === 1
+      ? paddingLeft + chartWidth / 2
+      : paddingLeft + (chartWidth * index) / (points.length - 1);
+    const y = paddingTop + chartHeight - (point.value / safeMax) * chartHeight;
+    return { ...point, x, y };
+  });
+
+  const pathData = coords.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(' ');
+  const areaData = coords.length
+    ? `${pathData} L ${coords[coords.length - 1].x.toFixed(2)} ${(paddingTop + chartHeight).toFixed(2)} L ${coords[0].x.toFixed(2)} ${(paddingTop + chartHeight).toFixed(2)} Z`
+    : '';
+
+  const gridLines = yTicks.map((tick) => {
+    const y = paddingTop + chartHeight - (tick / safeMax) * chartHeight;
+    return `<line x1="${paddingLeft}" y1="${y}" x2="${width - paddingRight}" y2="${y}" class="arlo-chart-grid" />
+      <text x="${paddingLeft - 10}" y="${y + 4}" class="arlo-chart-axis-label">${formatTickValue(tick, unit)}</text>`;
+  }).join('');
+
+  const xLabels = coords.map((point) => `
+    <text x="${point.x}" y="${height - 16}" text-anchor="middle" class="arlo-chart-axis-label">${point.shortDate}</text>
+  `).join('');
+
+  const pointDots = coords.map((point) => `
+    <circle cx="${point.x}" cy="${point.y}" r="4.5" fill="${color}">
+      <title>${point.date}: ${formatTickValue(point.value, unit)}</title>
+    </circle>
+  `).join('');
+
+  const emptyLineY = paddingTop + chartHeight;
+  const lineMarkup = coords.length > 1
+    ? `<path d="${areaData}" fill="${color}" fill-opacity="0.14"></path><path d="${pathData}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>`
+    : `<line x1="${paddingLeft}" y1="${emptyLineY}" x2="${width - paddingRight}" y2="${emptyLineY}" class="arlo-chart-grid" />`;
+
+  return `
+    <rect x="0" y="0" width="${width}" height="${height}" rx="24" class="arlo-chart-surface"></rect>
+    ${gridLines}
+    <line x1="${paddingLeft}" y1="${paddingTop + chartHeight}" x2="${width - paddingRight}" y2="${paddingTop + chartHeight}" class="arlo-chart-axis"></line>
+    ${lineMarkup}
+    ${pointDots}
+    ${xLabels}
+  `;
+}
+
+function buildYAxisTicks(maxValue) {
+  const steps = 4;
+  const ticks = [];
+  for (let index = 0; index <= steps; index += 1) {
+    ticks.push((maxValue / steps) * index);
+  }
+  return ticks;
+}
+
+function formatTickValue(value, unit) {
+  if (unit === 'feeds') {
+    return String(Math.round(value));
+  }
+  return `${roundToOneDecimal(value)} mL`;
+}
+
+function formatChartDate(value) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    return value;
+  }
+  return `${match[2]}/${match[3]}`;
 }
 
 async function apiFetchJson(url, options) {

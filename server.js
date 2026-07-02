@@ -12,6 +12,7 @@ const SHOWTIME_DEFAULT_USER = 'guest';
 const FINALE_DEFAULT_USER = 'guest';
 const FINALE_LAST_NAME = 'Mulholland';
 const ARLO_LOG_LIMIT = 60;
+const OUNCES_TO_ML = 29.5735;
 const SUMMARY_REFRESH_INTERVAL_MS = 1000 * 60 * 60 * 24 * 30;
 const SUMMARY_FETCH_DELAY_MS = 250;
 const app = express();
@@ -1460,12 +1461,20 @@ function buildArloState() {
     LIMIT 7
   `).all().map((row) => row.event_date);
   const summaries = summaryDates.map((date) => buildArloDailySummary(date));
+  const trendDates = db.prepare(`
+    SELECT DISTINCT event_date
+    FROM arlo_events
+    ORDER BY event_date DESC
+    LIMIT 30
+  `).all().map((row) => row.event_date);
+  const trendSummaries = trendDates.map((date) => buildArloDailySummary(date));
 
   return {
     lastName: FINALE_LAST_NAME,
     recentEvents,
     todaySummary: summaries[0] || buildArloDailySummary(formatDateInTimeZone(new Date(), 'America/Chicago')),
     summaries,
+    trendSummaries,
   };
 }
 
@@ -1510,25 +1519,53 @@ function buildArloDailySummary(date) {
       breastSide: row.breast_side || '',
     });
   }
-  const feedAmounts = db.prepare(`
-    SELECT activity_type, amount_unit, SUM(amount_value) AS total_amount
+  const feedStatsRows = db.prepare(`
+    SELECT
+      activity_type,
+      COUNT(*) AS count,
+      SUM(CASE WHEN amount_value IS NOT NULL THEN 1 ELSE 0 END) AS known_volume_count,
+      SUM(CASE WHEN amount_value IS NULL THEN 1 ELSE 0 END) AS missing_volume_count,
+      SUM(
+        CASE
+          WHEN amount_value IS NULL THEN 0
+          WHEN LOWER(COALESCE(amount_unit, '')) = 'oz' THEN amount_value * ?
+          ELSE amount_value
+        END
+      ) AS total_amount_ml
     FROM arlo_events
     WHERE event_date = ?
-      AND amount_value IS NOT NULL
-      AND activity_type IN ('stored-breast-milk', 'colostrum', 'formula', 'gripe-water')
-    GROUP BY activity_type, amount_unit
-  `).all(date).map((row) => ({
-    activityType: row.activity_type,
-    totalAmount: row.total_amount,
-    amountUnit: row.amount_unit || '',
-  }));
+      AND activity_type IN ('breastfeeding', 'stored-breast-milk', 'colostrum', 'formula', 'gripe-water')
+    GROUP BY activity_type
+  `).all(OUNCES_TO_ML, date);
+
+  const feedStats = {};
+  let knownFeedVolumeMl = 0;
+  let knownVolumeFeedCount = 0;
+  let missingVolumeFeedCount = 0;
+  for (const row of feedStatsRows) {
+    const totalAmountMl = Number(row.total_amount_ml || 0);
+    const knownVolumeCount = Number(row.known_volume_count || 0);
+    const missingVolumeCount = Number(row.missing_volume_count || 0);
+    feedStats[row.activity_type] = {
+      count: Number(row.count || 0),
+      knownVolumeCount,
+      missingVolumeCount,
+      totalAmountMl,
+    };
+    knownFeedVolumeMl += totalAmountMl;
+    knownVolumeFeedCount += knownVolumeCount;
+    missingVolumeFeedCount += missingVolumeCount;
+  }
 
   return {
     date,
     counts,
     latestByActivity,
     eventTimesByActivity,
-    feedAmounts,
+    feedStats,
+    knownFeedVolumeMl,
+    knownVolumeFeedCount,
+    missingVolumeFeedCount,
   };
 }
 

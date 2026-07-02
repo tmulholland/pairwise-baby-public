@@ -143,6 +143,36 @@
       <section class="panel">
         <div class="panel-header">
           <div>
+            <p class="section-label">Charting</p>
+            <h2>Feeding trends</h2>
+          </div>
+          <button id="arlo-chart-toggle" class="ghost-button small" type="button">Show charting</button>
+        </div>
+        <div id="arlo-chart-panel" class="arlo-chart-panel hidden">
+          <div class="arlo-chart-controls">
+            <div class="arlo-chart-control-group">
+              <p class="section-label">Metric</p>
+              <div id="arlo-chart-metric-buttons" class="arlo-chart-button-row"></div>
+            </div>
+            <div class="arlo-chart-control-group">
+              <p class="section-label">Series</p>
+              <div id="arlo-chart-series-buttons" class="arlo-chart-button-row"></div>
+            </div>
+            <div class="arlo-chart-control-group">
+              <p class="section-label">Volume</p>
+              <div id="arlo-chart-inferred-buttons" class="arlo-chart-button-row"></div>
+            </div>
+          </div>
+          <p id="arlo-chart-caption" class="muted"></p>
+          <div class="arlo-chart-frame">
+            <svg id="arlo-chart-svg" class="arlo-chart-svg" viewBox="0 0 720 280" role="img" aria-label="Arlo feeding trend chart"></svg>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
             <p class="section-label">Recent events</p>
             <h2>Latest log</h2>
           </div>

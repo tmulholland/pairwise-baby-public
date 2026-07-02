@@ -806,6 +806,69 @@ code {
   gap: 18px;
 }
 
+.arlo-chart-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.arlo-chart-controls {
+  display: grid;
+  gap: 14px;
+}
+
+.arlo-chart-control-group {
+  display: grid;
+  gap: 8px;
+}
+
+.arlo-chart-button-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.active-filter-button {
+  background: var(--ink);
+  color: white;
+  border-color: var(--ink);
+}
+
+.arlo-chart-frame {
+  overflow-x: auto;
+  padding: 8px;
+  border-radius: 24px;
+  background: rgba(255, 250, 243, 0.68);
+  border: 1px solid var(--line);
+}
+
+.arlo-chart-svg {
+  width: 100%;
+  min-width: 640px;
+  height: auto;
+  display: block;
+}
+
+.arlo-chart-surface {
+  fill: rgba(255, 255, 255, 0.78);
+}
+
+.arlo-chart-grid {
+  stroke: rgba(98, 87, 79, 0.18);
+  stroke-width: 1;
+}
+
+.arlo-chart-axis {
+  stroke: rgba(98, 87, 79, 0.32);
+  stroke-width: 1.2;
+}
+
+.arlo-chart-axis-label {
+  fill: var(--muted);
+  font-family: "Manrope", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .arlo-day-summary {
   display: grid;
   gap: 14px;
