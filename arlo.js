@@ -857,15 +857,15 @@ function buildChartSvg(points, maxValue, color, unit) {
   const paddingBottom = points.length > 10 ? 96 : 52;
   const chartWidth = width - paddingLeft - paddingRight;
   const chartHeight = height - paddingTop - paddingBottom;
-  const safeMax = maxValue > 0 ? maxValue : 1;
-  const yTicks = buildYAxisTicks(safeMax);
+  const axisMax = getChartAxisMax(maxValue, unit);
+  const yTicks = buildYAxisTicks(axisMax, unit);
   const xLabelStep = getXAxisLabelStep(points.length);
 
   const coords = points.map((point, index) => {
     const x = points.length === 1
       ? paddingLeft + chartWidth / 2
       : paddingLeft + (chartWidth * index) / (points.length - 1);
-    const y = paddingTop + chartHeight - (point.value / safeMax) * chartHeight;
+    const y = paddingTop + chartHeight - (point.value / axisMax) * chartHeight;
     return { ...point, x, y };
   });
 
@@ -875,7 +875,7 @@ function buildChartSvg(points, maxValue, color, unit) {
     : '';
 
   const gridLines = yTicks.map((tick) => {
-    const y = paddingTop + chartHeight - (tick / safeMax) * chartHeight;
+    const y = paddingTop + chartHeight - (tick / axisMax) * chartHeight;
     return `<line x1="${paddingLeft}" y1="${y}" x2="${width - paddingRight}" y2="${y}" class="arlo-chart-grid" />
       <text x="${paddingLeft - 10}" y="${y + 4}" class="arlo-chart-axis-label">${formatTickValue(tick, unit)}</text>`;
   }).join('');
@@ -922,7 +922,7 @@ function buildChartSvg(points, maxValue, color, unit) {
   };
 }
 
-function buildYAxisTicks(maxValue) {
+function buildYAxisTicks(maxValue, unit) {
   const steps = 4;
 
   if (state.chart.metric !== 'volume') {
@@ -933,12 +933,23 @@ function buildYAxisTicks(maxValue) {
     return ticks;
   }
 
-  const roundedMax = getRoundedVolumeAxisMax(maxValue, getChartUnit());
   const ticks = [];
   for (let index = 0; index <= steps; index += 1) {
-    ticks.push((roundedMax / steps) * index);
+    ticks.push((maxValue / steps) * index);
   }
   return ticks;
+}
+
+function getChartAxisMax(maxValue, unit) {
+  if (maxValue <= 0) {
+    return 1;
+  }
+
+  if (state.chart.metric !== 'volume') {
+    return maxValue;
+  }
+
+  return getRoundedVolumeAxisMax(maxValue, unit);
 }
 
 function getRoundedVolumeAxisMax(maxValue, unit) {
