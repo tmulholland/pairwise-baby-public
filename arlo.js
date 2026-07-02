@@ -716,6 +716,7 @@ function renderChart() {
 
   if (!state.trendSummaries.length) {
     elements.chartCaption.textContent = 'No feeding trend yet.';
+    elements.chartSvg.setAttribute('viewBox', '0 0 720 280');
     elements.chartSvg.innerHTML = '';
     return;
   }
@@ -727,8 +728,10 @@ function renderChart() {
   const unit = getChartUnit();
   const total = roundToOneDecimal(points.reduce((sum, point) => sum + point.value, 0));
 
+  const chartMarkup = buildChartSvg(points, maxValue, color, unit);
   elements.chartCaption.textContent = `${label} over the last ${points.length} day${points.length === 1 ? '' : 's'} • ${formatChartTotal(total, unit)}`;
-  elements.chartSvg.innerHTML = buildChartSvg(points, maxValue, color, unit);
+  elements.chartSvg.setAttribute('viewBox', `0 0 ${chartMarkup.width} ${chartMarkup.height}`);
+  elements.chartSvg.innerHTML = chartMarkup.markup;
 }
 
 function buildChartPoints() {
@@ -905,14 +908,18 @@ function buildChartSvg(points, maxValue, color, unit) {
     ? `<path d="${areaData}" fill="${color}" fill-opacity="0.14"></path><path d="${pathData}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>`
     : `<line x1="${paddingLeft}" y1="${emptyLineY}" x2="${width - paddingRight}" y2="${emptyLineY}" class="arlo-chart-grid" />`;
 
-  return `
-    <rect x="0" y="0" width="${width}" height="${height}" rx="24" class="arlo-chart-surface"></rect>
-    ${gridLines}
-    <line x1="${paddingLeft}" y1="${paddingTop + chartHeight}" x2="${width - paddingRight}" y2="${paddingTop + chartHeight}" class="arlo-chart-axis"></line>
-    ${lineMarkup}
-    ${pointDots}
-    ${xLabels}
-  `;
+  return {
+    width,
+    height,
+    markup: `
+      <rect x="0" y="0" width="${width}" height="${height}" rx="24" class="arlo-chart-surface"></rect>
+      ${gridLines}
+      <line x1="${paddingLeft}" y1="${paddingTop + chartHeight}" x2="${width - paddingRight}" y2="${paddingTop + chartHeight}" class="arlo-chart-axis"></line>
+      ${lineMarkup}
+      ${pointDots}
+      ${xLabels}
+    `,
+  };
 }
 
 function buildYAxisTicks(maxValue) {
