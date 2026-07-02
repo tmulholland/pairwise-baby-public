@@ -924,11 +924,48 @@ function buildChartSvg(points, maxValue, color, unit) {
 
 function buildYAxisTicks(maxValue) {
   const steps = 4;
+
+  if (state.chart.metric !== 'volume') {
+    const ticks = [];
+    for (let index = 0; index <= steps; index += 1) {
+      ticks.push((maxValue / steps) * index);
+    }
+    return ticks;
+  }
+
+  const roundedMax = getRoundedVolumeAxisMax(maxValue, getChartUnit());
   const ticks = [];
   for (let index = 0; index <= steps; index += 1) {
-    ticks.push((maxValue / steps) * index);
+    ticks.push((roundedMax / steps) * index);
   }
   return ticks;
+}
+
+function getRoundedVolumeAxisMax(maxValue, unit) {
+  const targetStep = maxValue / 4;
+  const step = unit === 'oz'
+    ? getNiceNumber(targetStep, [0.5, 1, 2, 5, 10, 20, 25, 50])
+    : getNiceNumber(targetStep, [5, 10, 20, 25, 50, 100, 125, 250, 500]);
+  return Math.max(step * 4, step);
+}
+
+function getNiceNumber(target, candidates) {
+  for (const candidate of candidates) {
+    if (target <= candidate) {
+      return candidate;
+    }
+  }
+
+  const largest = candidates[candidates.length - 1] || 1;
+  const magnitude = 10 ** Math.floor(Math.log10(target / largest || 1));
+  for (const candidate of candidates) {
+    const scaled = candidate * magnitude;
+    if (target <= scaled) {
+      return scaled;
+    }
+  }
+
+  return largest * magnitude * 10;
 }
 
 function getXAxisLabelStep(pointCount) {
