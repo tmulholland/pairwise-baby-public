@@ -23,6 +23,7 @@ const elements = {
   chartPanel: document.querySelector('#arlo-chart-panel'),
   chartMetricButtons: document.querySelector('#arlo-chart-metric-buttons'),
   chartSeriesButtons: document.querySelector('#arlo-chart-series-buttons'),
+  chartFeedModeButtons: document.querySelector('#arlo-chart-feed-mode-buttons'),
   chartInferredButtons: document.querySelector('#arlo-chart-inferred-buttons'),
   chartUnitButtons: document.querySelector('#arlo-chart-unit-buttons'),
   chartCaption: document.querySelector('#arlo-chart-caption'),
@@ -55,6 +56,12 @@ const CHART_UNIT_OPTIONS = [
   { key: 'ml', label: 'mL' },
   { key: 'oz', label: 'oz' },
 ];
+const CHART_FEED_MODE_OPTIONS = [
+  { key: 'raw', label: 'Raw' },
+  { key: 'adjusted', label: 'Adjusted' },
+];
+const ADJUSTED_FEED_ACTIVITY_TYPES = ['breastfeeding', 'stored-breast-milk', 'colostrum', 'formula'];
+const ADJUSTED_FEED_WINDOW_MINUTES = 45;
 
 const state = {
   recentEvents: [],
@@ -67,6 +74,7 @@ const state = {
     series: 'total',
     inference: 'known',
     unit: 'ml',
+    feedMode: 'raw',
   },
 };
 
@@ -683,6 +691,11 @@ function renderChartControls() {
     renderChartControls();
     renderChart();
   }, state.chart.metric !== 'feeds' && state.chart.metric !== 'volume');
+  renderChartButtonGroup(elements.chartFeedModeButtons, CHART_FEED_MODE_OPTIONS, state.chart.feedMode, (key) => {
+    state.chart.feedMode = key;
+    renderChartControls();
+    renderChart();
+  }, state.chart.metric !== 'feeds' || state.chart.series !== 'total');
   renderChartButtonGroup(elements.chartInferredButtons, CHART_INFERENCE_OPTIONS, state.chart.inference, (key) => {
     state.chart.inference = key;
     renderChartControls();
@@ -747,6 +760,9 @@ function buildChartPoints() {
 function getChartValue(summary) {
   if (state.chart.metric === 'feeds') {
     if (state.chart.series === 'total') {
+      if (state.chart.feedMode === 'adjusted') {
+        return getAdjustedFeedCount(summary);
+      }
       return FEEDING_ACTIVITY_TYPES.reduce((sum, activityType) => sum + getCount(summary, activityType), 0);
     }
     return getCount(summary, state.chart.series);
@@ -816,6 +832,10 @@ function getChartDisplayLabel() {
     return 'Pees/day';
   }
 
+  if (state.chart.metric === 'feeds' && state.chart.series === 'total' && state.chart.feedMode === 'adjusted') {
+    return 'Adjusted feeds/day';
+  }
+
   const metric = state.chart.metric === 'feeds'
     ? 'Feeds/day'
     : state.chart.unit === 'oz'
@@ -851,6 +871,45 @@ function getChartUnit() {
   }
 
   return 'feeds';
+}
+
+function getAdjustedFeedCount(summary) {
+  const allTimes = ADJUSTED_FEED_ACTIVITY_TYPES
+    .flatMap((activityType) => getEventTimes(summary, activityType).map((event) => event.eventTime))
+    .filter(Boolean)
+    .sort();
+
+  if (!allTimes.length) {
+    return 0;
+  }
+
+  let count = 1;
+  let previousMinutes = parseEventTimeToMinutes(allTimes[0]);
+  for (let index = 1; index < allTimes.length; index += 1) {
+    const currentMinutes = parseEventTimeToMinutes(allTimes[index]);
+    if (currentMinutes === null || previousMinutes === null) {
+      count += 1;
+      previousMinutes = currentMinutes;
+      continue;
+    }
+
+    if (currentMinutes - previousMinutes > ADJUSTED_FEED_WINDOW_MINUTES) {
+      count += 1;
+    }
+
+    previousMinutes = currentMinutes;
+  }
+
+  return count;
+}
+
+function parseEventTimeToMinutes(eventTime) {
+  const match = String(eventTime || '').match(/^(\d{2}):(\d{2})$/);
+  if (!match) {
+    return null;
+  }
+
+  return Number(match[1]) * 60 + Number(match[2]);
 }
 
 function buildChartSvg(points, maxValue, color, unit) {
