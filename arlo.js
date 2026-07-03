@@ -933,9 +933,10 @@ function buildYAxisTicks(maxValue, unit) {
     return ticks;
   }
 
+  const step = getVolumeTickStep(maxValue, unit);
   const ticks = [];
-  for (let index = 0; index <= steps; index += 1) {
-    ticks.push((maxValue / steps) * index);
+  for (let tick = 0; tick <= maxValue + step / 2; tick += step) {
+    ticks.push(tick);
   }
   return ticks;
 }
@@ -953,11 +954,15 @@ function getChartAxisMax(maxValue, unit) {
 }
 
 function getRoundedVolumeAxisMax(maxValue, unit) {
-  const targetStep = maxValue / 4;
-  const step = unit === 'oz'
-    ? getNiceNumber(targetStep, [0.5, 1, 2, 5, 10, 20, 25, 50])
-    : getNiceNumber(targetStep, [5, 10, 20, 25, 50, 100, 125, 250, 500]);
-  return Math.max(step * 4, step);
+  const step = getVolumeTickStep(maxValue, unit);
+  return Math.max(Math.ceil(maxValue / step) * step, step);
+}
+
+function getVolumeTickStep(maxValue, unit) {
+  const targetStep = maxValue / 6;
+  return unit === 'oz'
+    ? getNiceNumber(targetStep, [0.5, 1, 2, 2.5, 5, 10, 12.5, 25, 50])
+    : getNiceNumber(targetStep, [5, 10, 20, 25, 50, 100, 125, 200, 250, 500]);
 }
 
 function getNiceNumber(target, candidates) {
