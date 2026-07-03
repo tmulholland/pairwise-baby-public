@@ -837,7 +837,12 @@ function formatChartTotal(total, unit) {
         : 'total feeds';
     return `${Math.round(total)} ${label}`;
   }
-  return `${formatVolumeAmount(total)} total`;
+
+  if (unit === 'oz') {
+    return `${formatGallonsFromMl(total)} total`;
+  }
+
+  return `${formatLitersFromMl(total)} total`;
 }
 
 function getChartUnit() {
@@ -1018,6 +1023,16 @@ function formatTickValue(value, unit) {
   return unit === 'oz'
     ? `${roundToOneDecimal(Number(value || 0) / ML_PER_OUNCE)} oz`
     : `${roundToOneDecimal(value)} mL`;
+}
+
+function formatGallonsFromMl(valueMl) {
+  const gallons = Number(valueMl || 0) / ML_PER_OUNCE / 128;
+  return formatAmount(roundToOneDecimal(gallons), 'gal');
+}
+
+function formatLitersFromMl(valueMl) {
+  const liters = Number(valueMl || 0) / 1000;
+  return formatAmount(roundToOneDecimal(liters), 'L');
 }
 
 function formatChartDate(value) {
