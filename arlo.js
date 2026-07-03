@@ -960,9 +960,14 @@ function getRoundedVolumeAxisMax(maxValue, unit) {
 
 function getVolumeTickStep(maxValue, unit) {
   const targetStep = maxValue / 6;
-  return unit === 'oz'
-    ? getNiceNumber(targetStep, [0.5, 1, 2, 2.5, 5, 10, 12.5, 25, 50])
-    : getNiceNumber(targetStep, [5, 10, 20, 25, 50, 100, 125, 200, 250, 500]);
+
+  if (unit === 'oz') {
+    const targetStepOz = targetStep / ML_PER_OUNCE;
+    const niceStepOz = getNiceNumber(targetStepOz, [0.5, 1, 2, 2.5, 5, 10, 12.5, 25, 50]);
+    return niceStepOz * ML_PER_OUNCE;
+  }
+
+  return getNiceNumber(targetStep, [5, 10, 20, 25, 50, 100, 125, 200, 250, 500]);
 }
 
 function getNiceNumber(target, candidates) {
