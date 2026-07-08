@@ -2040,17 +2040,78 @@ function convertArloAmountToMl(amountValue, amountUnit) {
     : amount;
 }
 
-function parseArloEventTimestamp(eventDate, eventTime) {
+function parseArloEventTimestamp(eventDate, eventTime, timeZone = ARLO_TIME_ZONE) {
   if (!eventDate || !eventTime) {
     return null;
   }
 
-  const timestamp = new Date(`${eventDate}T${eventTime}:00`);
+  const match = String(`${eventDate} ${eventTime}`).match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/);
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+
+  // Interpret the stored wall-clock time in Arlo's home timezone instead of the server timezone.
+  let timestamp = new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
   if (Number.isNaN(timestamp.getTime())) {
     return null;
   }
 
+  for (let index = 0; index < 3; index += 1) {
+    const zonedParts = getDateTimePartsInTimeZone(timestamp, timeZone);
+    if (!zonedParts) {
+      return timestamp;
+    }
+
+    const desiredUtcMinutes = Date.UTC(year, month - 1, day, hour, minute, 0) / 60000;
+    const actualUtcMinutes = Date.UTC(
+      zonedParts.year,
+      zonedParts.month - 1,
+      zonedParts.day,
+      zonedParts.hour,
+      zonedParts.minute,
+      0
+    ) / 60000;
+    const diffMinutes = desiredUtcMinutes - actualUtcMinutes;
+
+    if (diffMinutes === 0) {
+      return timestamp;
+    }
+
+    timestamp = new Date(timestamp.getTime() + diffMinutes * 60000);
+  }
+
   return timestamp;
+}
+
+function getDateTimePartsInTimeZone(date, timeZone) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
+  const parts = formatter.formatToParts(date);
+  const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const year = Number(lookup.year);
+  const month = Number(lookup.month);
+  const day = Number(lookup.day);
+  const hour = Number(lookup.hour);
+  const minute = Number(lookup.minute);
+
+  if (![year, month, day, hour, minute].every(Number.isFinite)) {
+    return null;
+  }
+
+  return { year, month, day, hour, minute };
 }
 
 function percentileValue(values, percentile) {
