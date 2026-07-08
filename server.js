@@ -1614,10 +1614,13 @@ function normalizeArloFeedRow(row) {
   }
 
   const amountMl = convertArloAmountToMl(row.amount_value, row.amount_unit);
+  const treatsZeroAsMissing = row.activity_type === 'breastfeeding';
   const isKnownAmount = Number.isFinite(amountMl);
   const hasValidKnownAmount = isKnownAmount && amountMl > 0 && amountMl <= ARLO_MAX_REASONABLE_FEED_ML;
   const amountIssue = !isKnownAmount
     ? 'missing_amount'
+    : treatsZeroAsMissing && amountMl === 0
+      ? 'missing_amount'
     : amountMl <= 0
       ? 'zero_amount'
       : amountMl > ARLO_MAX_REASONABLE_FEED_ML
