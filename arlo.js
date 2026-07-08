@@ -29,6 +29,8 @@ const elements = {
   chartCaption: document.querySelector('#arlo-chart-caption'),
   chartSvg: document.querySelector('#arlo-chart-svg'),
   eventList: document.querySelector('#arlo-event-list'),
+  fuelBadge: document.querySelector('#arlo-fuel-badge'),
+  fuelCard: document.querySelector('#arlo-fuel-card'),
 };
 
 const POLL_INTERVAL_MS = 20000;
@@ -62,12 +64,16 @@ const CHART_FEED_MODE_OPTIONS = [
 ];
 const ADJUSTED_FEED_ACTIVITY_TYPES = ['breastfeeding', 'stored-breast-milk', 'colostrum', 'formula'];
 const ADJUSTED_FEED_WINDOW_MINUTES = 45;
+const DEFAULT_FUEL_GAUGE_TAU_HOURS = 1.25;
+const FUEL_GAUGE_TAU_OPTIONS = [1, 1.25, 1.5];
 
 const state = {
   recentEvents: [],
   todaySummary: null,
   summaries: [],
   trendSummaries: [],
+  fuelGauge: null,
+  fuelGaugeTau: DEFAULT_FUEL_GAUGE_TAU_HOURS,
   chart: {
     open: false,
     metric: 'feeds',
@@ -105,7 +111,7 @@ async function loadState() {
   showError('');
 
   try {
-    const payload = await apiFetchJson('/api/arlo');
+    const payload = await apiFetchJson(buildArloApiUrl('/api/arlo'));
     applyState(payload);
     setStatus('Live');
   } catch (error) {
@@ -122,7 +128,7 @@ async function handleSubmit(event) {
   showError('');
 
   try {
-    const payload = await apiFetchJson('/api/arlo/events', {
+    const payload = await apiFetchJson(buildArloApiUrl('/api/arlo/events'), {
       method: 'POST',
       body: JSON.stringify({
         activityType: elements.activityType.value,
@@ -152,9 +158,282 @@ function applyState(payload) {
   state.todaySummary = payload.todaySummary || null;
   state.summaries = payload.summaries || [];
   state.trendSummaries = payload.trendSummaries || payload.summaries || [];
+  state.fuelGauge = payload.fuelGauge || null;
+  if (payload.fuelGauge?.tau_hours) {
+    state.fuelGaugeTau = payload.fuelGauge.tau_hours;
+  }
+  renderFuelGauge();
   renderSummaries();
   renderChart();
   renderEvents();
+}
+
+function renderFuelGauge() {
+  const gauge = state.fuelGauge;
+  elements.fuelCard.innerHTML = '';
+
+  if (!gauge) {
+    elements.fuelBadge.textContent = 'Unavailable';
+    elements.fuelCard.innerHTML = '<p class="muted">Not enough recent feeding data yet.</p>';
+    return;
+  }
+
+  elements.fuelBadge.textContent = gauge.available ? `${formatTauLabel(gauge.tau_hours)} tau` : 'Limited data';
+
+  if (!gauge.available) {
+    const wrap = document.createElement('div');
+    wrap.className = 'arlo-fuel-empty';
+    wrap.innerHTML = `
+      <p class="arlo-fuel-recommendation">${escapeHtml(gauge.message || 'Not enough recent feeding data yet.')}</p>
+      <p class="muted">Strong hunger cues should override the gauge. This is decision support only.</p>
+    `;
+    wrap.append(buildTauSelector(gauge.tau_options_hours || FUEL_GAUGE_TAU_OPTIONS));
+    if (Array.isArray(gauge.warnings) && gauge.warnings.length) {
+      wrap.append(buildWarningList(gauge.warnings));
+    }
+    elements.fuelCard.append(wrap);
+    return;
+  }
+
+  const gaugeFillPct = Math.max(0, Math.min(Number(gauge.display_fullness_score || 0), 100));
+  const zoneLabel = getFuelZoneLabel(gauge.fullness_score);
+  const lastFeedLabel = gauge.last_feed
+    ? `${formatFeedAmountLabel(gauge.last_feed.amount_ml)} ${formatMinutesAgo(gauge.last_feed.minutes_ago)}`
+    : 'No recent feed';
+  const intakeLabel = `${formatMl(gauge.rolling_24h_ml)} / ${formatMl(gauge.typical_daily_ml)} typical`;
+  const overfull = Number(gauge.fullness_score || 0) > 100;
+
+  const card = document.createElement('div');
+  card.className = 'arlo-fuel-layout';
+  card.innerHTML = `
+    <div class="arlo-fuel-meter-block">
+      <div class="arlo-fuel-meter" aria-hidden="true">
+        <div class="arlo-fuel-meter-fill" style="width: ${gaugeFillPct}%;"></div>
+      </div>
+      <div class="arlo-fuel-headline">
+        <div>
+          <p class="arlo-fuel-value">${Math.round(Number(gauge.display_fullness_score || 0))}% full${overfull ? ' <span class="arlo-fuel-overfull">100%+</span>' : ''}</p>
+          <p class="arlo-fuel-zone">${escapeHtml(zoneLabel)}</p>
+        </div>
+        <p class="arlo-fuel-recommendation">${escapeHtml(gauge.recommendation || '')}</p>
+      </div>
+    </div>
+    <div class="arlo-fuel-glance-grid">
+      <div class="arlo-fuel-stat">
+        <span class="arlo-fuel-stat-label">Last feed</span>
+        <strong>${escapeHtml(lastFeedLabel)}</strong>
+      </div>
+      <div class="arlo-fuel-stat">
+        <span class="arlo-fuel-stat-label">24h intake</span>
+        <strong>${escapeHtml(intakeLabel)}</strong>
+      </div>
+    </div>
+    <p class="arlo-fuel-note">Strong hunger cues override the gauge. This is decision support only, not a feeding rule.</p>
+  `;
+
+  if (Array.isArray(gauge.warnings) && gauge.warnings.length) {
+    card.append(buildWarningList(gauge.warnings));
+  }
+
+  card.append(buildTauSelector(gauge.tau_options_hours || FUEL_GAUGE_TAU_OPTIONS));
+  card.append(buildFuelWhyDetails(gauge));
+  elements.fuelCard.append(card);
+}
+
+function buildFuelWhyDetails(gauge) {
+  const details = document.createElement('details');
+  details.className = 'arlo-fuel-details';
+
+  const summary = document.createElement('summary');
+  summary.textContent = 'Why?';
+  details.append(summary);
+
+  const body = document.createElement('div');
+  body.className = 'arlo-fuel-details-body';
+  body.innerHTML = `
+    <div class="field-grid two-up arlo-fuel-debug-grid">
+      <div class="summary-card">
+        <p class="section-label">Short term</p>
+        <p class="summary-card-text">Milk on board: ${formatMl(gauge.milk_on_board_ml)}</p>
+        <p class="summary-card-text">Typical full: ${formatMl(gauge.typical_full_level_ml)}</p>
+        <p class="summary-card-text">Short-term gauge: ${formatPct(gauge.short_term_gauge_pct)}</p>
+      </div>
+      <div class="summary-card">
+        <p class="section-label">Daily context</p>
+        <p class="summary-card-text">Rolling 24h: ${formatMl(gauge.rolling_24h_ml)}</p>
+        <p class="summary-card-text">Typical day: ${formatMl(gauge.typical_daily_ml)}</p>
+        <p class="summary-card-text">Daily gauge: ${formatPct(gauge.daily_gauge_pct)}</p>
+      </div>
+    </div>
+    <p class="muted">Tau: ${formatTauLabel(gauge.tau_hours)} hours. Fullness score blends 85% short-term decay with 15% 24-hour intake context.</p>
+    <p class="muted">${escapeHtml(formatRecentFeedSnapshots(gauge.last_3_feeds || gauge.recent_feed_snapshots || []))}</p>
+  `;
+
+  body.append(buildRecentFeedsTable(gauge.recent_feeds || []));
+  body.append(buildProjectedOptions(gauge.simulated_feed_options || []));
+  body.append(buildBacktestBlock(gauge.backtest || []));
+
+  details.append(body);
+  return details;
+}
+
+function buildRecentFeedsTable(feeds) {
+  const wrap = document.createElement('div');
+  wrap.className = 'arlo-fuel-table-wrap';
+
+  const title = document.createElement('p');
+  title.className = 'section-label';
+  title.textContent = 'Recent feed contributions';
+  wrap.append(title);
+
+  if (!feeds.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted';
+    empty.textContent = 'No recent valid feed contributions to show.';
+    wrap.append(empty);
+    return wrap;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'arlo-fuel-table';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Timestamp</th>
+        <th>Amount</th>
+        <th>Hours ago</th>
+        <th>Contribution</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${feeds.map((feed) => `
+        <tr>
+          <td>${escapeHtml(formatIsoTimestamp(feed.timestamp))}</td>
+          <td>${escapeHtml(formatFeedAmountLabel(feed.amount_ml))}</td>
+          <td>${escapeHtml(formatHoursAgo(feed.hours_ago))}</td>
+          <td>${escapeHtml(formatFeedAmountLabel(feed.contribution_ml))}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  `;
+  wrap.append(table);
+  return wrap;
+}
+
+function buildProjectedOptions(options) {
+  const wrap = document.createElement('div');
+  wrap.className = 'arlo-fuel-projections';
+
+  const title = document.createElement('p');
+  title.className = 'section-label';
+  title.textContent = 'If we top off now';
+  wrap.append(title);
+
+  if (!options.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted';
+    empty.textContent = 'Projected feed options are unavailable.';
+    wrap.append(empty);
+    return wrap;
+  }
+
+  for (const option of options) {
+    const item = document.createElement('div');
+    item.className = 'summary-card';
+    item.innerHTML = `
+      <p class="summary-card-text">+${formatMl(option.additional_ml)} -> ${formatPct(option.projected_fullness_score)} full</p>
+      <p class="muted">${escapeHtml(option.projected_recommendation)}</p>
+    `;
+    wrap.append(item);
+  }
+
+  return wrap;
+}
+
+function buildBacktestBlock(rows) {
+  const wrap = document.createElement('div');
+  wrap.className = 'arlo-fuel-backtest';
+
+  const title = document.createElement('p');
+  title.className = 'section-label';
+  title.textContent = 'Backtest';
+  wrap.append(title);
+
+  if (!rows.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted';
+    empty.textContent = 'Backtest data is unavailable.';
+    wrap.append(empty);
+    return wrap;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'arlo-fuel-table';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Tau</th>
+        <th>Samples</th>
+        <th>Median hunger</th>
+        <th>Large feeds</th>
+        <th>Top-offs</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows.map((row) => `
+        <tr>
+          <td>${escapeHtml(formatTauLabel(row.tau_hours))}</td>
+          <td>${escapeHtml(String(row.sample_size || 0))}</td>
+          <td>${escapeHtml(row.message ? row.message : formatPct(row.median_hunger_score_before_feeds))}</td>
+          <td>${escapeHtml(row.message ? '—' : formatPct(row.median_hunger_score_before_large_feeds))}</td>
+          <td>${escapeHtml(row.message ? '—' : formatPct(row.median_hunger_score_before_small_topoffs))}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  `;
+  wrap.append(table);
+  return wrap;
+}
+
+function buildTauSelector(options) {
+  const wrap = document.createElement('div');
+  wrap.className = 'arlo-fuel-tau';
+
+  const label = document.createElement('p');
+  label.className = 'section-label';
+  label.textContent = 'Tau';
+  wrap.append(label);
+
+  const row = document.createElement('div');
+  row.className = 'arlo-chart-button-row';
+  for (const option of options) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `ghost-button small${Number(option) === Number(state.fuelGaugeTau) ? ' active-filter-button' : ''}`;
+    button.textContent = formatTauLabel(option);
+    button.addEventListener('click', () => {
+      if (Number(option) === Number(state.fuelGaugeTau)) {
+        return;
+      }
+      state.fuelGaugeTau = Number(option);
+      loadState();
+    });
+    row.append(button);
+  }
+  wrap.append(row);
+  return wrap;
+}
+
+function buildWarningList(warnings) {
+  const list = document.createElement('div');
+  list.className = 'arlo-fuel-warnings';
+  for (const warning of warnings) {
+    const item = document.createElement('p');
+    item.className = 'arlo-fuel-warning';
+    item.textContent = warning;
+    list.append(item);
+  }
+  return list;
 }
 
 function renderSummaries() {
@@ -331,7 +610,7 @@ async function deleteEvent(eventId) {
   showError('');
 
   try {
-    const payload = await apiFetchJson(`/api/arlo/events/${eventId}`, {
+    const payload = await apiFetchJson(buildArloApiUrl(`/api/arlo/events/${eventId}`), {
       method: 'DELETE',
     });
     applyState(payload);
@@ -1100,6 +1379,93 @@ function formatChartDate(value) {
     return value;
   }
   return `${match[2]}/${match[3]}`;
+}
+
+function buildArloApiUrl(pathname) {
+  const url = new URL(pathname, window.location.origin);
+  url.searchParams.set('tauHours', String(state.fuelGaugeTau || DEFAULT_FUEL_GAUGE_TAU_HOURS));
+  return `${url.pathname}${url.search}`;
+}
+
+function getFuelZoneLabel(fullnessScore) {
+  const score = Number(fullnessScore || 0);
+  if (score < 30) {
+    return 'Empty / ready';
+  }
+  if (score < 55) {
+    return 'Could be hungry';
+  }
+  if (score < 75) {
+    return 'Middle zone';
+  }
+  if (score <= 100) {
+    return 'Fairly full';
+  }
+  return 'Above typical full';
+}
+
+function formatTauLabel(value) {
+  return `${Number(value).toFixed(2).replace(/0$/, '').replace(/\.0$/, '')}h`;
+}
+
+function formatMl(value) {
+  return `${roundToOneDecimal(value)} mL`;
+}
+
+function formatPct(value) {
+  return `${roundToOneDecimal(value)}%`;
+}
+
+function formatFeedAmountLabel(value) {
+  if (value === null || value === undefined || value === '') {
+    return 'Unknown amount';
+  }
+  return formatMl(value);
+}
+
+function formatMinutesAgo(minutes) {
+  const totalMinutes = Math.max(0, Math.round(Number(minutes || 0)));
+  if (totalMinutes < 60) {
+    return `${totalMinutes} min ago`;
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const remainder = totalMinutes % 60;
+  if (!remainder) {
+    return `${hours} hr ago`;
+  }
+
+  return `${hours} hr ${remainder} min ago`;
+}
+
+function formatHoursAgo(hours) {
+  return `${roundToOneDecimal(hours)} h`;
+}
+
+function formatIsoTimestamp(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return `${formatDateLocal(date)} ${formatDisplayTime(formatTimeLocal(date))}`;
+}
+
+function formatRecentFeedSnapshots(feeds) {
+  if (!feeds.length) {
+    return 'Last 3 feeds: unavailable.';
+  }
+
+  return `Last 3 feeds: ${feeds.map((feed) => `${formatFeedAmountLabel(feed.amount_ml)} ${formatMinutesAgo(feed.minutes_ago)}`).join(' • ')}`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 async function apiFetchJson(url, options) {

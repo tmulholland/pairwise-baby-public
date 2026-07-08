@@ -13,6 +13,14 @@ const FINALE_DEFAULT_USER = 'guest';
 const FINALE_LAST_NAME = 'Mulholland';
 const ARLO_LOG_LIMIT = 60;
 const OUNCES_TO_ML = 29.5735;
+const ARLO_TIME_ZONE = 'America/Chicago';
+const ARLO_FUEL_LOOKBACK_DAYS = 14;
+const ARLO_FUEL_RECENT_WINDOW_HOURS = 24;
+const ARLO_FUEL_DEFAULT_TAU_HOURS = 1.25;
+const ARLO_FUEL_TAU_OPTIONS = [1, 1.25, 1.5];
+const ARLO_FUEL_FULL_PERCENTILE = 90;
+const ARLO_MAX_REASONABLE_FEED_ML = 400;
+const ARLO_SIMULATED_FEED_OPTIONS_ML = [30, 60, 120];
 const SUMMARY_REFRESH_INTERVAL_MS = 1000 * 60 * 60 * 24 * 30;
 const SUMMARY_FETCH_DELAY_MS = 250;
 const app = express();
@@ -131,9 +139,9 @@ app.get('/api/finale/combined', (req, res) => {
   }
 });
 
-app.get('/api/arlo', (_req, res) => {
+app.get('/api/arlo', (req, res) => {
   try {
-    res.json(buildArloState());
+    res.json(buildArloState(req.query));
   } catch (error) {
     handleError(res, error);
   }
@@ -365,7 +373,7 @@ app.post('/api/finale/comparisons', (req, res) => {
 app.post('/api/arlo/events', (req, res) => {
   try {
     recordArloEvent(req.body || {});
-    res.status(201).json(buildArloState());
+    res.status(201).json(buildArloState(req.query));
   } catch (error) {
     handleError(res, error);
   }
@@ -374,7 +382,7 @@ app.post('/api/arlo/events', (req, res) => {
 app.delete('/api/arlo/events/:eventId', (req, res) => {
   try {
     deleteArloEvent(Number(req.params.eventId));
-    res.json(buildArloState());
+    res.json(buildArloState(req.query));
   } catch (error) {
     handleError(res, error);
   }
@@ -1434,7 +1442,8 @@ function getFinaleCombinationKey(firstNameId, middleNameId) {
   return `${firstNameId}:${middleNameId}`;
 }
 
-function buildArloState() {
+function buildArloState(options = {}) {
+  const tauHours = normalizeArloTauHours(options.tauHours);
   const recentEvents = db.prepare(`
     SELECT id, activity_type, event_date, event_time, amount_value, amount_unit, poop_color, shart, vitamin_d, breast_side, created_at
     FROM arlo_events
@@ -1467,9 +1476,11 @@ function buildArloState() {
     ORDER BY event_date DESC
   `).all().map((row) => row.event_date);
   const trendSummaries = trendDates.map((date) => buildArloDailySummary(date));
+  const fuelGauge = computeArloFuelGauge(new Date(), tauHours);
 
   return {
     lastName: FINALE_LAST_NAME,
+    fuelGauge,
     recentEvents,
     todaySummary: summaries[0] || buildArloDailySummary(formatDateInTimeZone(new Date(), 'America/Chicago')),
     summaries,
@@ -1566,6 +1577,463 @@ function buildArloDailySummary(date) {
     knownVolumeFeedCount,
     missingVolumeFeedCount,
   };
+}
+
+function computeArloFuelGauge(now, tauHours = ARLO_FUEL_DEFAULT_TAU_HOURS) {
+  const history = getArloFeedHistory(now, ARLO_FUEL_LOOKBACK_DAYS);
+  return buildArloFuelGaugePayload(now, history, tauHours);
+}
+
+function getArloFeedHistory(now, lookbackDays = ARLO_FUEL_LOOKBACK_DAYS) {
+  const start = new Date(now.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
+  const startDate = formatDateInTimeZone(start, ARLO_TIME_ZONE);
+  const endDate = formatDateInTimeZone(now, ARLO_TIME_ZONE);
+  const rows = db.prepare(`
+    SELECT id, activity_type, event_date, event_time, amount_value, amount_unit, vitamin_d, breast_side, created_at
+    FROM arlo_events
+    WHERE event_date BETWEEN ? AND ?
+      AND activity_type IN ('breastfeeding', 'stored-breast-milk', 'colostrum', 'formula')
+    ORDER BY event_date ASC, event_time ASC, id ASC
+  `).all(startDate, endDate);
+
+  return rows.map((row) => normalizeArloFeedRow(row)).filter(Boolean);
+}
+
+function normalizeArloFeedRow(row) {
+  const timestamp = parseArloEventTimestamp(row.event_date, row.event_time);
+  if (!timestamp) {
+    return null;
+  }
+
+  const amountMl = convertArloAmountToMl(row.amount_value, row.amount_unit);
+  const isKnownAmount = Number.isFinite(amountMl);
+  const isValidAmount = isKnownAmount && amountMl > 0 && amountMl <= ARLO_MAX_REASONABLE_FEED_ML;
+  const amountIssue = !isKnownAmount
+    ? 'missing_amount'
+    : amountMl <= 0
+      ? 'zero_amount'
+      : amountMl > ARLO_MAX_REASONABLE_FEED_ML
+        ? 'amount_outlier'
+        : null;
+
+  return {
+    id: row.id,
+    activityType: row.activity_type,
+    eventDate: row.event_date,
+    eventTime: row.event_time,
+    timestamp: timestamp.toISOString(),
+    timestampMs: timestamp.getTime(),
+    amountMl: isValidAmount ? roundToOneDecimal(amountMl) : null,
+    rawAmountMl: isKnownAmount ? roundToOneDecimal(amountMl) : null,
+    amountIssue,
+    isKnownAmount,
+    isValidAmount,
+    vitaminD: Boolean(row.vitamin_d),
+    breastSide: row.breast_side || '',
+    createdAt: row.created_at,
+  };
+}
+
+function buildArloFuelGaugePayload(now, feedHistory, tauHours) {
+  const validFeeds = feedHistory.filter((feed) => feed.isValidAmount && feed.timestampMs <= now.getTime());
+  const recentValidFeeds = validFeeds.filter((feed) => (now.getTime() - feed.timestampMs) <= ARLO_FUEL_RECENT_WINDOW_HOURS * 60 * 60 * 1000);
+  const latestFeed = getLastMatchingFeed(feedHistory, (feed) => feed.timestampMs <= now.getTime());
+  const lastThreeFeeds = [...validFeeds].slice(-3).reverse().map((feed) => buildRecentFeedSnapshot(feed, now, tauHours));
+  const invalidFeeds = feedHistory.filter((feed) => feed.amountIssue);
+  const typicalFullLevelMl = computeTypicalFullLevel(validFeeds, tauHours, ARLO_FUEL_FULL_PERCENTILE);
+  const typicalDailyMl = computeTypicalDailyTotal(validFeeds);
+  const rolling24hMl = computeRolling24hTotal(validFeeds, now);
+  const milkOnBoardMl = computeMilkOnBoard(validFeeds, now, tauHours);
+  const shortTermGaugePctRaw = typicalFullLevelMl > 0 ? (100 * milkOnBoardMl) / typicalFullLevelMl : null;
+  const dailyGaugePctRaw = typicalDailyMl > 0 ? (100 * rolling24hMl) / typicalDailyMl : null;
+  const fullnessScoreRaw = shortTermGaugePctRaw === null || dailyGaugePctRaw === null
+    ? null
+    : 0.85 * shortTermGaugePctRaw + 0.15 * dailyGaugePctRaw;
+  const availability = getArloFuelGaugeAvailability({
+    feedHistory,
+    validFeeds,
+    recentValidFeeds,
+    typicalFullLevelMl,
+    typicalDailyMl,
+  });
+  const warnings = buildArloFuelGaugeWarnings({ latestFeed, invalidFeeds, recentValidFeeds });
+  const recentContributions = buildRecentFeedContributions(validFeeds, now, tauHours);
+  const backtest = backtestArloHungerScores(validFeeds, ARLO_FUEL_TAU_OPTIONS);
+
+  if (!availability.available || fullnessScoreRaw === null) {
+    return {
+      as_of: now.toISOString(),
+      mode: 'arlo',
+      component: 'fuel_gauge',
+      available: false,
+      message: availability.message,
+      tau_hours: tauHours,
+      tau_options_hours: ARLO_FUEL_TAU_OPTIONS,
+      warnings,
+      ignored_feed_count: invalidFeeds.length,
+      ignored_feeds: invalidFeeds.map((feed) => ({
+        timestamp: feed.timestamp,
+        activity_type: feed.activityType,
+        raw_amount_ml: feed.rawAmountMl,
+        amount_issue: feed.amountIssue,
+      })),
+      last_feed: latestFeed ? buildLastFeedPayload(latestFeed, now) : null,
+      recent_feeds: recentContributions,
+      recent_feed_snapshots: lastThreeFeeds,
+      last_3_feeds: lastThreeFeeds,
+      backtest,
+    };
+  }
+
+  const projectedOptions = computeProjectedFeedOptions(now, validFeeds, {
+    tauHours,
+    typicalFullLevelMl,
+    typicalDailyMl,
+    rolling24hMl,
+    optionsMl: ARLO_SIMULATED_FEED_OPTIONS_ML,
+  });
+  const recommendation = getArloRecommendation(fullnessScoreRaw);
+
+  return {
+    as_of: now.toISOString(),
+    mode: 'arlo',
+    component: 'fuel_gauge',
+    available: true,
+    fullness_score: roundToOneDecimal(clamp(fullnessScoreRaw, 0, 150)),
+    display_fullness_score: Math.round(clamp(fullnessScoreRaw, 0, 100)),
+    hunger_score: roundToOneDecimal(clamp(100 - fullnessScoreRaw, 0, 100)),
+    milk_on_board_ml: roundToOneDecimal(milkOnBoardMl),
+    short_term_gauge_pct: roundToOneDecimal(shortTermGaugePctRaw),
+    short_term_gauge_pct_uncapped: roundToOneDecimal(shortTermGaugePctRaw),
+    rolling_24h_ml: roundToOneDecimal(rolling24hMl),
+    daily_gauge_pct: roundToOneDecimal(dailyGaugePctRaw),
+    typical_full_level_ml: roundToOneDecimal(typicalFullLevelMl),
+    typical_daily_ml: roundToOneDecimal(typicalDailyMl),
+    tau_hours: tauHours,
+    tau_options_hours: ARLO_FUEL_TAU_OPTIONS,
+    recommendation,
+    last_feed: latestFeed ? buildLastFeedPayload(latestFeed, now) : null,
+    recent_feeds: recentContributions,
+    recent_feed_snapshots: lastThreeFeeds,
+    last_3_feeds: lastThreeFeeds,
+    simulated_feed_options: projectedOptions,
+    warnings,
+    ignored_feed_count: invalidFeeds.length,
+    ignored_feeds: invalidFeeds.map((feed) => ({
+      timestamp: feed.timestamp,
+      activity_type: feed.activityType,
+      raw_amount_ml: feed.rawAmountMl,
+      amount_issue: feed.amountIssue,
+    })),
+    backtest,
+  };
+}
+
+function getArloFuelGaugeAvailability({ feedHistory, validFeeds, recentValidFeeds, typicalFullLevelMl, typicalDailyMl }) {
+  if (!feedHistory.length) {
+    return { available: false, message: 'Not enough recent feeding data yet.' };
+  }
+
+  if (!recentValidFeeds.length) {
+    return { available: false, message: 'Not enough recent feeding data yet.' };
+  }
+
+  if (validFeeds.length < 4) {
+    return { available: false, message: 'Not enough recent feeding data yet.' };
+  }
+
+  if (!(typicalFullLevelMl > 0) || !(typicalDailyMl > 0)) {
+    return { available: false, message: 'Not enough recent feeding data yet.' };
+  }
+
+  return { available: true, message: '' };
+}
+
+function buildArloFuelGaugeWarnings({ latestFeed, invalidFeeds, recentValidFeeds }) {
+  const warnings = [];
+
+  if (latestFeed && !latestFeed.isValidAmount) {
+    warnings.push('Last feed has no usable mL amount, so it was excluded from the gauge.');
+  }
+
+  if (invalidFeeds.length) {
+    warnings.push(`${invalidFeeds.length} feed${invalidFeeds.length === 1 ? '' : 's'} were ignored because the mL amount was missing, zero, or suspicious.`);
+  }
+
+  if (!recentValidFeeds.length && validFeeds.length) {
+    warnings.push('No valid milk feeds were logged in the last 24 hours.');
+  }
+
+  return warnings;
+}
+
+function computeMilkOnBoard(feeds, now, tauHours = ARLO_FUEL_DEFAULT_TAU_HOURS, additionalMl = 0) {
+  if (!(tauHours > 0)) {
+    return 0;
+  }
+
+  const nowMs = now.getTime();
+  let total = 0;
+  for (const feed of feeds) {
+    if (!feed.isValidAmount || feed.timestampMs > nowMs) {
+      continue;
+    }
+
+    const hoursSinceFeed = (nowMs - feed.timestampMs) / (1000 * 60 * 60);
+    total += feed.amountMl * Math.exp(-hoursSinceFeed / tauHours);
+  }
+
+  if (additionalMl > 0) {
+    total += additionalMl;
+  }
+
+  return total;
+}
+
+function computeRolling24hTotal(feeds, now) {
+  const cutoffMs = now.getTime() - 24 * 60 * 60 * 1000;
+  return feeds.reduce((sum, feed) => {
+    if (!feed.isValidAmount || feed.timestampMs > now.getTime() || feed.timestampMs < cutoffMs) {
+      return sum;
+    }
+    return sum + feed.amountMl;
+  }, 0);
+}
+
+function computeTypicalDailyTotal(feeds) {
+  const totalsByDay = new Map();
+  for (const feed of feeds) {
+    if (!feed.isValidAmount) {
+      continue;
+    }
+    totalsByDay.set(feed.eventDate, (totalsByDay.get(feed.eventDate) || 0) + feed.amountMl);
+  }
+
+  return median([...totalsByDay.values()]);
+}
+
+function computeTypicalFullLevel(feeds, tauHours = ARLO_FUEL_DEFAULT_TAU_HOURS, percentile = ARLO_FUEL_FULL_PERCENTILE) {
+  const postFeedLevels = [];
+  for (const feed of feeds) {
+    if (!feed.isValidAmount) {
+      continue;
+    }
+    postFeedLevels.push(computeMilkOnBoard(feeds, new Date(feed.timestampMs), tauHours));
+  }
+
+  return percentileValue(postFeedLevels, percentile);
+}
+
+function computeProjectedFeedOptions(now, feeds, { tauHours, typicalFullLevelMl, typicalDailyMl, rolling24hMl, optionsMl }) {
+  return optionsMl.map((additionalMl) => {
+    const milkOnBoardMl = computeMilkOnBoard(feeds, now, tauHours, additionalMl);
+    const shortTermGaugePct = typicalFullLevelMl > 0 ? (100 * milkOnBoardMl) / typicalFullLevelMl : 0;
+    const dailyGaugePct = typicalDailyMl > 0 ? (100 * (rolling24hMl + additionalMl)) / typicalDailyMl : 0;
+    const fullnessScore = 0.85 * shortTermGaugePct + 0.15 * dailyGaugePct;
+
+    return {
+      additional_ml: additionalMl,
+      projected_fullness_score: roundToOneDecimal(clamp(fullnessScore, 0, 150)),
+      projected_recommendation: getArloRecommendation(fullnessScore),
+    };
+  });
+}
+
+function backtestArloHungerScores(feeds, tauHoursValues = ARLO_FUEL_TAU_OPTIONS) {
+  const results = [];
+
+  for (const tauHours of tauHoursValues) {
+    const typicalFullLevelMl = computeTypicalFullLevel(feeds, tauHours, ARLO_FUEL_FULL_PERCENTILE);
+    const typicalDailyMl = computeTypicalDailyTotal(feeds);
+    const snapshots = [];
+
+    if (!(typicalFullLevelMl > 0) || !(typicalDailyMl > 0)) {
+      results.push({
+        tau_hours: tauHours,
+        sample_size: 0,
+        message: 'Not enough data to backtest this tau.',
+      });
+      continue;
+    }
+
+    for (const feed of feeds) {
+      if (!feed.isValidAmount) {
+        continue;
+      }
+
+      const eventNow = new Date(feed.timestampMs - 1000);
+      const milkOnBoardMl = computeMilkOnBoard(feeds, eventNow, tauHours);
+      const rolling24hMl = computeRolling24hTotal(feeds, eventNow);
+      const shortTermGaugePct = (100 * milkOnBoardMl) / typicalFullLevelMl;
+      const dailyGaugePct = (100 * rolling24hMl) / typicalDailyMl;
+      const fullnessScore = 0.85 * shortTermGaugePct + 0.15 * dailyGaugePct;
+      const hungerScore = clamp(100 - fullnessScore, 0, 100);
+
+      snapshots.push({
+        amountMl: feed.amountMl,
+        fullnessScore,
+        hungerScore,
+      });
+    }
+
+    const largeFeeds = snapshots.filter((snapshot) => snapshot.amountMl >= 100);
+    const smallTopOffs = snapshots.filter((snapshot) => snapshot.amountMl < 60);
+    const hungerScores = snapshots.map((snapshot) => snapshot.hungerScore);
+
+    results.push({
+      tau_hours: tauHours,
+      sample_size: snapshots.length,
+      median_fullness_score_before_feeds: roundToOneDecimal(median(snapshots.map((snapshot) => snapshot.fullnessScore))),
+      median_hunger_score_before_feeds: roundToOneDecimal(median(hungerScores)),
+      median_hunger_score_before_large_feeds: roundToOneDecimal(median(largeFeeds.map((snapshot) => snapshot.hungerScore))),
+      median_hunger_score_before_small_topoffs: roundToOneDecimal(median(smallTopOffs.map((snapshot) => snapshot.hungerScore))),
+      hunger_score_distribution: {
+        under_25: hungerScores.filter((value) => value < 25).length,
+        between_25_and_50: hungerScores.filter((value) => value >= 25 && value < 50).length,
+        between_50_and_75: hungerScores.filter((value) => value >= 50 && value < 75).length,
+        over_75: hungerScores.filter((value) => value >= 75).length,
+      },
+    });
+  }
+
+  return results;
+}
+
+function buildRecentFeedContributions(feeds, now, tauHours) {
+  const nowMs = now.getTime();
+  return feeds
+    .filter((feed) => feed.timestampMs <= nowMs && (nowMs - feed.timestampMs) <= ARLO_FUEL_RECENT_WINDOW_HOURS * 60 * 60 * 1000)
+    .map((feed) => {
+      const hoursAgo = (nowMs - feed.timestampMs) / (1000 * 60 * 60);
+      return {
+        timestamp: feed.timestamp,
+        amount_ml: feed.amountMl,
+        hours_ago: roundToOneDecimal(hoursAgo),
+        contribution_ml: roundToOneDecimal(feed.amountMl * Math.exp(-hoursAgo / tauHours)),
+        activity_type: feed.activityType,
+      };
+    })
+    .sort((left, right) => right.timestamp.localeCompare(left.timestamp));
+}
+
+function buildLastFeedPayload(feed, now) {
+  return {
+    timestamp: feed.timestamp,
+    amount_ml: feed.amountMl,
+    activity_type: feed.activityType,
+    minutes_ago: Math.max(0, Math.round((now.getTime() - feed.timestampMs) / 60000)),
+  };
+}
+
+function buildRecentFeedSnapshot(feed, now, tauHours) {
+  const hoursAgo = (now.getTime() - feed.timestampMs) / (1000 * 60 * 60);
+  return {
+    timestamp: feed.timestamp,
+    amount_ml: feed.amountMl,
+    minutes_ago: Math.max(0, Math.round((now.getTime() - feed.timestampMs) / 60000)),
+    contribution_ml: roundToOneDecimal(feed.amountMl * Math.exp(-hoursAgo / tauHours)),
+  };
+}
+
+function getLastMatchingFeed(feeds, predicate) {
+  for (let index = feeds.length - 1; index >= 0; index -= 1) {
+    if (predicate(feeds[index])) {
+      return feeds[index];
+    }
+  }
+  return null;
+}
+
+function getArloRecommendation(fullnessScore) {
+  if (!(fullnessScore >= 0)) {
+    return 'Not enough recent feeding data yet.';
+  }
+  if (fullnessScore < 30) {
+    return 'Likely ready for a full feed if showing hunger cues.';
+  }
+  if (fullnessScore < 55) {
+    return 'Could be hungry; consider a normal feed or partial feed depending on cues.';
+  }
+  if (fullnessScore < 75) {
+    return 'Middle zone — consider a small top-off if hunger cues continue.';
+  }
+  if (fullnessScore <= 100) {
+    return 'Recently well-fed; try burping, upright time, pacifier, or soothing first.';
+  }
+  return 'Above typical full level; avoid another full feed unless hunger cues are very strong.';
+}
+
+function normalizeArloTauHours(value) {
+  const tauHours = Number(value);
+  if (!Number.isFinite(tauHours)) {
+    return ARLO_FUEL_DEFAULT_TAU_HOURS;
+  }
+
+  const matchedOption = ARLO_FUEL_TAU_OPTIONS.find((option) => Math.abs(option - tauHours) < 0.001);
+  return matchedOption || ARLO_FUEL_DEFAULT_TAU_HOURS;
+}
+
+function convertArloAmountToMl(amountValue, amountUnit) {
+  const amount = Number(amountValue);
+  if (!Number.isFinite(amount)) {
+    return null;
+  }
+
+  return String(amountUnit || '').toLowerCase() === 'oz'
+    ? amount * OUNCES_TO_ML
+    : amount;
+}
+
+function parseArloEventTimestamp(eventDate, eventTime) {
+  if (!eventDate || !eventTime) {
+    return null;
+  }
+
+  const timestamp = new Date(`${eventDate}T${eventTime}:00`);
+  if (Number.isNaN(timestamp.getTime())) {
+    return null;
+  }
+
+  return timestamp;
+}
+
+function percentileValue(values, percentile) {
+  const sorted = values
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value))
+    .sort((left, right) => left - right);
+
+  if (!sorted.length) {
+    return 0;
+  }
+
+  const rank = (clamp(percentile, 0, 100) / 100) * (sorted.length - 1);
+  const lowerIndex = Math.floor(rank);
+  const upperIndex = Math.ceil(rank);
+  if (lowerIndex === upperIndex) {
+    return sorted[lowerIndex];
+  }
+
+  const weight = rank - lowerIndex;
+  return sorted[lowerIndex] + (sorted[upperIndex] - sorted[lowerIndex]) * weight;
+}
+
+function median(values) {
+  return percentileValue(values, 50);
+}
+
+function clamp(value, min, max) {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  return Math.min(Math.max(value, min), max);
+}
+
+function roundToOneDecimal(value) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.round(value * 10) / 10;
 }
 
 function recordArloEvent(payload) {

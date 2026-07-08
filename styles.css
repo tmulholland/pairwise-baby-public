@@ -806,6 +806,199 @@ code {
   gap: 18px;
 }
 
+.arlo-fuel-panel {
+  overflow: hidden;
+}
+
+.arlo-fuel-card {
+  display: grid;
+  gap: 18px;
+}
+
+.arlo-fuel-layout,
+.arlo-fuel-empty {
+  display: grid;
+  gap: 18px;
+}
+
+.arlo-fuel-meter-block {
+  display: grid;
+  gap: 16px;
+}
+
+.arlo-fuel-meter {
+  position: relative;
+  overflow: hidden;
+  min-height: 30px;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.9), rgba(250, 240, 225, 0.95)),
+    var(--paper-strong);
+  border: 1px solid rgba(98, 87, 79, 0.18);
+}
+
+.arlo-fuel-meter::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 999px;
+  border: 1px dashed rgba(98, 87, 79, 0.18);
+  pointer-events: none;
+}
+
+.arlo-fuel-meter-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, #d87f3c 0%, #d6b15f 42%, #9bcb58 75%, #6ea84a 100%);
+  box-shadow: inset 0 -2px 10px rgba(255, 255, 255, 0.22);
+}
+
+.arlo-fuel-headline {
+  display: grid;
+  gap: 10px;
+}
+
+.arlo-fuel-value,
+.arlo-fuel-zone,
+.arlo-fuel-recommendation,
+.arlo-fuel-note,
+.arlo-fuel-warning {
+  margin: 0;
+}
+
+.arlo-fuel-value {
+  font-family: "Fraunces", serif;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  line-height: 0.95;
+}
+
+.arlo-fuel-overfull {
+  display: inline-flex;
+  margin-left: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(110, 168, 74, 0.14);
+  color: #416a28;
+  font-family: "Manrope", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 800;
+  vertical-align: middle;
+}
+
+.arlo-fuel-zone {
+  color: var(--accent-dark);
+  font-weight: 800;
+}
+
+.arlo-fuel-recommendation {
+  font-size: 1.02rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.arlo-fuel-glance-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.arlo-fuel-stat {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 250, 243, 0.78);
+  border: 1px solid var(--line);
+}
+
+.arlo-fuel-stat-label {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.arlo-fuel-note {
+  color: var(--muted);
+}
+
+.arlo-fuel-warnings {
+  display: grid;
+  gap: 8px;
+}
+
+.arlo-fuel-warning {
+  padding: 11px 14px;
+  border-radius: 16px;
+  background: rgba(255, 238, 229, 0.9);
+  border: 1px solid rgba(180, 79, 51, 0.18);
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
+.arlo-fuel-tau {
+  display: grid;
+  gap: 8px;
+}
+
+.arlo-fuel-details {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.arlo-fuel-details summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.arlo-fuel-details-body {
+  display: grid;
+  gap: 18px;
+  margin-top: 16px;
+}
+
+.arlo-fuel-debug-grid {
+  align-items: start;
+}
+
+.arlo-fuel-table-wrap,
+.arlo-fuel-projections,
+.arlo-fuel-backtest {
+  display: grid;
+  gap: 12px;
+}
+
+.arlo-fuel-table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border-radius: 18px;
+  background: rgba(255, 250, 243, 0.78);
+  border: 1px solid var(--line);
+}
+
+.arlo-fuel-table th,
+.arlo-fuel-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid rgba(98, 87, 79, 0.12);
+  font-size: 0.92rem;
+}
+
+.arlo-fuel-table th {
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.arlo-fuel-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
 .arlo-chart-panel {
   display: grid;
   gap: 18px;
@@ -936,5 +1129,9 @@ code {
   .choice-blurb {
     min-height: calc(1.5em * 3);
     -webkit-line-clamp: 3;
+  }
+
+  .arlo-fuel-glance-grid {
+    grid-template-columns: 1fr;
   }
 }
