@@ -1795,10 +1795,6 @@ function buildArloFuelGaugeWarnings({ latestFeed, latestGaugeFeed, invalidFeeds,
     warnings.push('Last feed has no usable mL amount, so it was excluded from the gauge.');
   }
 
-  if (inferredFeeds.length) {
-    warnings.push(`${inferredFeeds.length} feed${inferredFeeds.length === 1 ? '' : 's'} used inferred mL based on average known feed volume.`);
-  }
-
   if (invalidFeeds.length) {
     warnings.push(`${invalidFeeds.length} feed${invalidFeeds.length === 1 ? '' : 's'} were ignored because the mL amount was missing, zero, or suspicious.`);
   }
