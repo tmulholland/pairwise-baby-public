@@ -198,7 +198,7 @@ function renderFuelGauge() {
   const gaugeFillPct = Math.max(0, Math.min(Number(gauge.display_fullness_score || 0), 100));
   const zoneLabel = getFuelZoneLabel(gauge.fullness_score);
   const lastFeedLabel = gauge.last_feed
-    ? `${formatFeedAmountLabel(gauge.last_feed.amount_ml)} ${formatMinutesAgo(gauge.last_feed.minutes_ago)}`
+    ? `${formatFeedAmountLabel(gauge.last_feed.amount_ml, gauge.last_feed.amount_source)} ${formatMinutesAgo(gauge.last_feed.minutes_ago)}`
     : 'No recent feed';
   const intakeLabel = `${formatMl(gauge.rolling_24h_ml)} / ${formatMl(gauge.typical_daily_ml)} typical`;
   const overfull = Number(gauge.fullness_score || 0) > 100;
@@ -308,10 +308,10 @@ function buildRecentFeedsTable(feeds) {
     <tbody>
       ${feeds.map((feed) => `
         <tr>
-          <td>${escapeHtml(formatIsoTimestamp(feed.timestamp))}</td>
-          <td>${escapeHtml(formatFeedAmountLabel(feed.amount_ml))}</td>
+          <td>${escapeHtml(formatFeedTimestamp(feed))}</td>
+          <td>${escapeHtml(formatFeedAmountLabel(feed.amount_ml, feed.amount_source))}</td>
           <td>${escapeHtml(formatHoursAgo(feed.hours_ago))}</td>
-          <td>${escapeHtml(formatFeedAmountLabel(feed.contribution_ml))}</td>
+          <td>${escapeHtml(formatFeedAmountLabel(feed.contribution_ml, feed.amount_source))}</td>
         </tr>
       `).join('')}
     </tbody>
@@ -1416,11 +1416,12 @@ function formatPct(value) {
   return `${roundToOneDecimal(value)}%`;
 }
 
-function formatFeedAmountLabel(value) {
+function formatFeedAmountLabel(value, amountSource = 'logged') {
   if (value === null || value === undefined || value === '') {
     return 'Unknown amount';
   }
-  return formatMl(value);
+  const label = formatMl(value);
+  return amountSource === 'inferred' ? `${label} estimated` : label;
 }
 
 function formatMinutesAgo(minutes) {
@@ -1451,12 +1452,28 @@ function formatIsoTimestamp(value) {
   return `${formatDateLocal(date)} ${formatDisplayTime(formatTimeLocal(date))}`;
 }
 
+function formatFeedTimestamp(feed) {
+  if (feed?.display_timestamp) {
+    const match = String(feed.display_timestamp).match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$/);
+    if (match) {
+      return `${match[1]} ${formatDisplayTime(match[2])}`;
+    }
+    return String(feed.display_timestamp);
+  }
+
+  if (feed?.event_date && feed?.event_time) {
+    return `${feed.event_date} ${formatDisplayTime(feed.event_time)}`;
+  }
+
+  return formatIsoTimestamp(feed?.timestamp);
+}
+
 function formatRecentFeedSnapshots(feeds) {
   if (!feeds.length) {
     return 'Last 3 feeds: unavailable.';
   }
 
-  return `Last 3 feeds: ${feeds.map((feed) => `${formatFeedAmountLabel(feed.amount_ml)} ${formatMinutesAgo(feed.minutes_ago)}`).join(' • ')}`;
+  return `Last 3 feeds: ${feeds.map((feed) => `${formatFeedAmountLabel(feed.amount_ml, feed.amount_source)} ${formatMinutesAgo(feed.minutes_ago)}`).join(' • ')}`;
 }
 
 function escapeHtml(value) {

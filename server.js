@@ -1596,7 +1596,15 @@ function getArloFeedHistory(now, lookbackDays = ARLO_FUEL_LOOKBACK_DAYS) {
     ORDER BY event_date ASC, event_time ASC, id ASC
   `).all(startDate, endDate);
 
-  return rows.map((row) => normalizeArloFeedRow(row)).filter(Boolean);
+  const baseFeeds = rows.map((row) => normalizeArloFeedRow(row)).filter(Boolean);
+  const knownAmounts = baseFeeds
+    .map((feed) => feed.rawAmountMl)
+    .filter((amountMl) => Number.isFinite(amountMl) && amountMl > 0 && amountMl <= ARLO_MAX_REASONABLE_FEED_ML);
+  const inferredAverageMl = knownAmounts.length
+    ? knownAmounts.reduce((sum, amountMl) => sum + amountMl, 0) / knownAmounts.length
+    : null;
+
+  return baseFeeds.map((feed) => applyArloInferredAmount(feed, inferredAverageMl));
 }
 
 function normalizeArloFeedRow(row) {
@@ -1607,7 +1615,7 @@ function normalizeArloFeedRow(row) {
 
   const amountMl = convertArloAmountToMl(row.amount_value, row.amount_unit);
   const isKnownAmount = Number.isFinite(amountMl);
-  const isValidAmount = isKnownAmount && amountMl > 0 && amountMl <= ARLO_MAX_REASONABLE_FEED_ML;
+  const hasValidKnownAmount = isKnownAmount && amountMl > 0 && amountMl <= ARLO_MAX_REASONABLE_FEED_ML;
   const amountIssue = !isKnownAmount
     ? 'missing_amount'
     : amountMl <= 0
@@ -1623,14 +1631,38 @@ function normalizeArloFeedRow(row) {
     eventTime: row.event_time,
     timestamp: timestamp.toISOString(),
     timestampMs: timestamp.getTime(),
-    amountMl: isValidAmount ? roundToOneDecimal(amountMl) : null,
+    displayTimestamp: `${row.event_date} ${row.event_time}`,
+    amountMl: hasValidKnownAmount ? roundToOneDecimal(amountMl) : null,
     rawAmountMl: isKnownAmount ? roundToOneDecimal(amountMl) : null,
     amountIssue,
     isKnownAmount,
-    isValidAmount,
+    hasValidKnownAmount,
+    isValidAmount: hasValidKnownAmount,
+    amountSource: hasValidKnownAmount ? 'logged' : 'missing',
     vitaminD: Boolean(row.vitamin_d),
     breastSide: row.breast_side || '',
     createdAt: row.created_at,
+  };
+}
+
+function applyArloInferredAmount(feed, inferredAverageMl) {
+  if (!feed) {
+    return null;
+  }
+
+  if (feed.hasValidKnownAmount) {
+    return feed;
+  }
+
+  if (feed.amountIssue !== 'missing_amount' || !(inferredAverageMl > 0)) {
+    return feed;
+  }
+
+  return {
+    ...feed,
+    amountMl: roundToOneDecimal(inferredAverageMl),
+    isValidAmount: true,
+    amountSource: 'inferred',
   };
 }
 
@@ -1638,8 +1670,10 @@ function buildArloFuelGaugePayload(now, feedHistory, tauHours) {
   const validFeeds = feedHistory.filter((feed) => feed.isValidAmount && feed.timestampMs <= now.getTime());
   const recentValidFeeds = validFeeds.filter((feed) => (now.getTime() - feed.timestampMs) <= ARLO_FUEL_RECENT_WINDOW_HOURS * 60 * 60 * 1000);
   const latestFeed = getLastMatchingFeed(feedHistory, (feed) => feed.timestampMs <= now.getTime());
+  const latestGaugeFeed = getLastMatchingFeed(validFeeds, (feed) => feed.timestampMs <= now.getTime());
   const lastThreeFeeds = [...validFeeds].slice(-3).reverse().map((feed) => buildRecentFeedSnapshot(feed, now, tauHours));
-  const invalidFeeds = feedHistory.filter((feed) => feed.amountIssue);
+  const invalidFeeds = feedHistory.filter((feed) => feed.amountIssue && !feed.isValidAmount);
+  const inferredFeeds = feedHistory.filter((feed) => feed.amountSource === 'inferred');
   const typicalFullLevelMl = computeTypicalFullLevel(validFeeds, tauHours, ARLO_FUEL_FULL_PERCENTILE);
   const typicalDailyMl = computeTypicalDailyTotal(validFeeds);
   const rolling24hMl = computeRolling24hTotal(validFeeds, now);
@@ -1656,7 +1690,7 @@ function buildArloFuelGaugePayload(now, feedHistory, tauHours) {
     typicalFullLevelMl,
     typicalDailyMl,
   });
-  const warnings = buildArloFuelGaugeWarnings({ latestFeed, invalidFeeds, recentValidFeeds });
+  const warnings = buildArloFuelGaugeWarnings({ latestFeed, invalidFeeds, inferredFeeds, recentValidFeeds, latestGaugeFeed });
   const recentContributions = buildRecentFeedContributions(validFeeds, now, tauHours);
   const backtest = backtestArloHungerScores(validFeeds, ARLO_FUEL_TAU_OPTIONS);
 
@@ -1670,6 +1704,7 @@ function buildArloFuelGaugePayload(now, feedHistory, tauHours) {
       tau_hours: tauHours,
       tau_options_hours: ARLO_FUEL_TAU_OPTIONS,
       warnings,
+      inferred_feed_count: inferredFeeds.length,
       ignored_feed_count: invalidFeeds.length,
       ignored_feeds: invalidFeeds.map((feed) => ({
         timestamp: feed.timestamp,
@@ -1677,7 +1712,7 @@ function buildArloFuelGaugePayload(now, feedHistory, tauHours) {
         raw_amount_ml: feed.rawAmountMl,
         amount_issue: feed.amountIssue,
       })),
-      last_feed: latestFeed ? buildLastFeedPayload(latestFeed, now) : null,
+      last_feed: latestGaugeFeed ? buildLastFeedPayload(latestGaugeFeed, now) : (latestFeed ? buildLastFeedPayload(latestFeed, now) : null),
       recent_feeds: recentContributions,
       recent_feed_snapshots: lastThreeFeeds,
       last_3_feeds: lastThreeFeeds,
@@ -1712,12 +1747,13 @@ function buildArloFuelGaugePayload(now, feedHistory, tauHours) {
     tau_hours: tauHours,
     tau_options_hours: ARLO_FUEL_TAU_OPTIONS,
     recommendation,
-    last_feed: latestFeed ? buildLastFeedPayload(latestFeed, now) : null,
+    last_feed: latestGaugeFeed ? buildLastFeedPayload(latestGaugeFeed, now) : (latestFeed ? buildLastFeedPayload(latestFeed, now) : null),
     recent_feeds: recentContributions,
     recent_feed_snapshots: lastThreeFeeds,
     last_3_feeds: lastThreeFeeds,
     simulated_feed_options: projectedOptions,
     warnings,
+    inferred_feed_count: inferredFeeds.length,
     ignored_feed_count: invalidFeeds.length,
     ignored_feeds: invalidFeeds.map((feed) => ({
       timestamp: feed.timestamp,
@@ -1749,18 +1785,26 @@ function getArloFuelGaugeAvailability({ feedHistory, validFeeds, recentValidFeed
   return { available: true, message: '' };
 }
 
-function buildArloFuelGaugeWarnings({ latestFeed, invalidFeeds, recentValidFeeds }) {
+function buildArloFuelGaugeWarnings({ latestFeed, latestGaugeFeed, invalidFeeds, inferredFeeds, recentValidFeeds }) {
   const warnings = [];
 
   if (latestFeed && !latestFeed.isValidAmount) {
     warnings.push('Last feed has no usable mL amount, so it was excluded from the gauge.');
   }
 
+  if (inferredFeeds.length) {
+    warnings.push(`${inferredFeeds.length} feed${inferredFeeds.length === 1 ? '' : 's'} used inferred mL based on average known feed volume.`);
+  }
+
   if (invalidFeeds.length) {
     warnings.push(`${invalidFeeds.length} feed${invalidFeeds.length === 1 ? '' : 's'} were ignored because the mL amount was missing, zero, or suspicious.`);
   }
 
-  if (!recentValidFeeds.length && validFeeds.length) {
+  if (latestFeed && latestGaugeFeed && latestFeed.id !== latestGaugeFeed.id) {
+    warnings.push('The most recent logged feed could not be used directly, so the gauge is anchored to the latest feed with usable or inferred volume.');
+  }
+
+  if (!recentValidFeeds.length) {
     warnings.push('No valid milk feeds were logged in the last 24 hours.');
   }
 
@@ -1907,10 +1951,14 @@ function buildRecentFeedContributions(feeds, now, tauHours) {
       const hoursAgo = (nowMs - feed.timestampMs) / (1000 * 60 * 60);
       return {
         timestamp: feed.timestamp,
+        display_timestamp: feed.displayTimestamp,
+        event_date: feed.eventDate,
+        event_time: feed.eventTime,
         amount_ml: feed.amountMl,
         hours_ago: roundToOneDecimal(hoursAgo),
         contribution_ml: roundToOneDecimal(feed.amountMl * Math.exp(-hoursAgo / tauHours)),
         activity_type: feed.activityType,
+        amount_source: feed.amountSource,
       };
     })
     .sort((left, right) => right.timestamp.localeCompare(left.timestamp));
@@ -1919,9 +1967,13 @@ function buildRecentFeedContributions(feeds, now, tauHours) {
 function buildLastFeedPayload(feed, now) {
   return {
     timestamp: feed.timestamp,
+    display_timestamp: feed.displayTimestamp,
+    event_date: feed.eventDate,
+    event_time: feed.eventTime,
     amount_ml: feed.amountMl,
     activity_type: feed.activityType,
     minutes_ago: Math.max(0, Math.round((now.getTime() - feed.timestampMs) / 60000)),
+    amount_source: feed.amountSource,
   };
 }
 
@@ -1929,9 +1981,13 @@ function buildRecentFeedSnapshot(feed, now, tauHours) {
   const hoursAgo = (now.getTime() - feed.timestampMs) / (1000 * 60 * 60);
   return {
     timestamp: feed.timestamp,
+    display_timestamp: feed.displayTimestamp,
+    event_date: feed.eventDate,
+    event_time: feed.eventTime,
     amount_ml: feed.amountMl,
     minutes_ago: Math.max(0, Math.round((now.getTime() - feed.timestampMs) / 60000)),
     contribution_ml: roundToOneDecimal(feed.amountMl * Math.exp(-hoursAgo / tauHours)),
+    amount_source: feed.amountSource,
   };
 }
 
