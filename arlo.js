@@ -201,6 +201,7 @@ function renderFuelGauge() {
     ? `${formatFeedAmountLabel(gauge.last_feed.amount_ml, gauge.last_feed.amount_source)} ${formatMinutesAgo(gauge.last_feed.minutes_ago)}`
     : 'No recent feed';
   const intakeLabel = `${formatMl(gauge.rolling_24h_ml)} / ${formatMl(gauge.typical_daily_ml)} typical`;
+  const timeToEmptyLabel = gauge.time_to_empty_label || formatDurationFromMinutes(gauge.time_to_empty_minutes);
   const overfull = Number(gauge.fullness_score || 0) > 100;
 
   const card = document.createElement('div');
@@ -222,6 +223,10 @@ function renderFuelGauge() {
       <div class="arlo-fuel-stat">
         <span class="arlo-fuel-stat-label">Last feed</span>
         <strong>${escapeHtml(lastFeedLabel)}</strong>
+      </div>
+      <div class="arlo-fuel-stat">
+        <span class="arlo-fuel-stat-label">Time to empty</span>
+        <strong>${escapeHtml(timeToEmptyLabel)}</strong>
       </div>
       <div class="arlo-fuel-stat">
         <span class="arlo-fuel-stat-label">24h intake</span>
@@ -257,6 +262,7 @@ function buildFuelWhyDetails(gauge) {
         <p class="summary-card-text">Milk on board: ${formatMl(gauge.milk_on_board_ml)}</p>
         <p class="summary-card-text">Typical full: ${formatMl(gauge.typical_full_level_ml)}</p>
         <p class="summary-card-text">Short-term gauge: ${formatPct(gauge.short_term_gauge_pct)}</p>
+        <p class="summary-card-text">Time to empty: ${escapeHtml(gauge.time_to_empty_label || formatDurationFromMinutes(gauge.time_to_empty_minutes))}</p>
       </div>
       <div class="summary-card">
         <p class="section-label">Daily context</p>
@@ -266,6 +272,7 @@ function buildFuelWhyDetails(gauge) {
       </div>
     </div>
     <p class="muted">Tau: ${formatTauLabel(gauge.tau_hours)} hours. Fullness score blends 85% short-term decay with 15% 24-hour intake context.</p>
+    <p class="muted">Time to empty uses the short-term decay only and treats “empty” as about ${formatMl(gauge.empty_threshold_ml || 0)} milk on board.</p>
     <p class="muted">${escapeHtml(formatRecentFeedSnapshots(gauge.last_3_feeds || gauge.recent_feed_snapshots || []))}</p>
   `;
 
@@ -1474,6 +1481,24 @@ function formatRecentFeedSnapshots(feeds) {
   }
 
   return `Last 3 feeds: ${feeds.map((feed) => `${formatFeedAmountLabel(feed.amount_ml, feed.amount_source)} ${formatMinutesAgo(feed.minutes_ago)}`).join(' • ')}`;
+}
+
+function formatDurationFromMinutes(totalMinutes) {
+  const minutes = Math.max(0, Math.round(Number(totalMinutes || 0)));
+  if (minutes <= 0) {
+    return 'Now';
+  }
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (!remainder) {
+    return `${hours} hr`;
+  }
+
+  return `${hours} hr ${remainder} min`;
 }
 
 function escapeHtml(value) {

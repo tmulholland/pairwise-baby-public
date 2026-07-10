@@ -21,6 +21,8 @@ const ARLO_FUEL_TAU_OPTIONS = [1, 1.25, 1.5];
 const ARLO_FUEL_FULL_PERCENTILE = 90;
 const ARLO_MAX_REASONABLE_FEED_ML = 400;
 const ARLO_SIMULATED_FEED_OPTIONS_ML = [30, 60, 120];
+const ARLO_EMPTY_THRESHOLD_MIN_ML = 10;
+const ARLO_EMPTY_THRESHOLD_FULL_RATIO = 0.1;
 const SUMMARY_REFRESH_INTERVAL_MS = 1000 * 60 * 60 * 24 * 30;
 const SUMMARY_FETCH_DELAY_MS = 250;
 const app = express();
@@ -1681,6 +1683,8 @@ function buildArloFuelGaugePayload(now, feedHistory, tauHours) {
   const typicalDailyMl = computeTypicalDailyTotal(validFeeds);
   const rolling24hMl = computeRolling24hTotal(validFeeds, now);
   const milkOnBoardMl = computeMilkOnBoard(validFeeds, now, tauHours);
+  const emptyThresholdMl = computeArloEmptyThresholdMl(typicalFullLevelMl);
+  const timeToEmptyMinutes = computeArloTimeToEmptyMinutes(milkOnBoardMl, tauHours, emptyThresholdMl);
   const shortTermGaugePctRaw = typicalFullLevelMl > 0 ? (100 * milkOnBoardMl) / typicalFullLevelMl : null;
   const dailyGaugePctRaw = typicalDailyMl > 0 ? (100 * rolling24hMl) / typicalDailyMl : null;
   const fullnessScoreRaw = shortTermGaugePctRaw === null || dailyGaugePctRaw === null
@@ -1707,6 +1711,9 @@ function buildArloFuelGaugePayload(now, feedHistory, tauHours) {
       tau_hours: tauHours,
       tau_options_hours: ARLO_FUEL_TAU_OPTIONS,
       warnings,
+      time_to_empty_minutes: timeToEmptyMinutes,
+      time_to_empty_label: formatDurationMinutes(timeToEmptyMinutes),
+      empty_threshold_ml: roundToOneDecimal(emptyThresholdMl),
       inferred_feed_count: inferredFeeds.length,
       ignored_feed_count: invalidFeeds.length,
       ignored_feeds: invalidFeeds.map((feed) => ({
@@ -1747,6 +1754,9 @@ function buildArloFuelGaugePayload(now, feedHistory, tauHours) {
     daily_gauge_pct: roundToOneDecimal(dailyGaugePctRaw),
     typical_full_level_ml: roundToOneDecimal(typicalFullLevelMl),
     typical_daily_ml: roundToOneDecimal(typicalDailyMl),
+    time_to_empty_minutes: timeToEmptyMinutes,
+    time_to_empty_label: formatDurationMinutes(timeToEmptyMinutes),
+    empty_threshold_ml: roundToOneDecimal(emptyThresholdMl),
     tau_hours: tauHours,
     tau_options_hours: ARLO_FUEL_TAU_OPTIONS,
     recommendation,
@@ -1865,6 +1875,31 @@ function computeTypicalFullLevel(feeds, tauHours = ARLO_FUEL_DEFAULT_TAU_HOURS, 
   }
 
   return percentileValue(postFeedLevels, percentile);
+}
+
+function computeArloEmptyThresholdMl(typicalFullLevelMl) {
+  if (!(typicalFullLevelMl > 0)) {
+    return ARLO_EMPTY_THRESHOLD_MIN_ML;
+  }
+
+  return Math.max(ARLO_EMPTY_THRESHOLD_MIN_ML, typicalFullLevelMl * ARLO_EMPTY_THRESHOLD_FULL_RATIO);
+}
+
+function computeArloTimeToEmptyMinutes(milkOnBoardMl, tauHours, emptyThresholdMl) {
+  if (!(milkOnBoardMl > 0) || !(tauHours > 0) || !(emptyThresholdMl > 0)) {
+    return 0;
+  }
+
+  if (milkOnBoardMl <= emptyThresholdMl) {
+    return 0;
+  }
+
+  const hoursToEmpty = tauHours * Math.log(milkOnBoardMl / emptyThresholdMl);
+  if (!Number.isFinite(hoursToEmpty) || hoursToEmpty <= 0) {
+    return 0;
+  }
+
+  return Math.round(hoursToEmpty * 60);
 }
 
 function computeProjectedFeedOptions(now, feeds, { tauHours, typicalFullLevelMl, typicalDailyMl, rolling24hMl, optionsMl }) {
@@ -2150,6 +2185,25 @@ function roundToOneDecimal(value) {
     return 0;
   }
   return Math.round(value * 10) / 10;
+}
+
+function formatDurationMinutes(totalMinutes) {
+  if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) {
+    return 'Now';
+  }
+
+  const minutes = Math.max(0, Math.round(totalMinutes));
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (!remainder) {
+    return `${hours} hr`;
+  }
+
+  return `${hours} hr ${remainder} min`;
 }
 
 function recordArloEvent(payload) {
