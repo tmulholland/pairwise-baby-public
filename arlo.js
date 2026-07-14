@@ -44,6 +44,14 @@ const FEEDING_ACTIVITY_OPTIONS = [
   { key: 'formula', label: 'Formula', color: '#97cf45' },
   { key: 'gripe-water', label: 'Gripe water', color: '#3b82f6' },
 ];
+const DAILY_PLOT_ACTIVITY_TYPES = [
+  { activityType: 'breastfeeding', colorClass: 'timeline-dot-breastfeeding' },
+  { activityType: 'stored-breast-milk', colorClass: 'timeline-dot-stored-milk' },
+  { activityType: 'colostrum', colorClass: 'timeline-dot-colostrum' },
+  { activityType: 'formula', colorClass: 'timeline-dot-formula' },
+  { activityType: 'gripe-water', colorClass: 'timeline-dot-gripe-water' },
+  { activityType: 'tylenol', colorClass: 'timeline-dot-tylenol' },
+];
 const CHART_METRIC_OPTIONS = [
   { key: 'feeds', label: 'Feeds/day' },
   { key: 'volume', label: 'mL/day' },
@@ -518,13 +526,7 @@ function renderFeedingSummaryCard(summary) {
   text.textContent = parts.join(' • ');
   card.append(text);
 
-  const events = buildTimelineEvents(summary, [
-    { activityType: 'breastfeeding', colorClass: 'timeline-dot-breastfeeding' },
-    { activityType: 'stored-breast-milk', colorClass: 'timeline-dot-stored-milk' },
-    { activityType: 'colostrum', colorClass: 'timeline-dot-colostrum' },
-    { activityType: 'formula', colorClass: 'timeline-dot-formula' },
-    { activityType: 'gripe-water', colorClass: 'timeline-dot-gripe-water' },
-  ]);
+  const events = buildTimelineEvents(summary, DAILY_PLOT_ACTIVITY_TYPES);
 
   if (events.length) {
     card.append(renderSummaryTimeline(events));
@@ -672,6 +674,7 @@ function formatActivityLabel(activityType) {
     colostrum: 'Colostrum',
     formula: 'Formula',
     'gripe-water': 'Gripe water',
+    tylenol: 'Tylenol',
     'poop-diaper': 'Poop diaper',
     'pee-diaper': 'Pee diaper',
     'both-diaper': 'Poop + pee diaper',
@@ -858,7 +861,7 @@ function syncAmountState() {
   elements.breastSide.disabled = !supportsBreastSide;
   elements.amountHelp.textContent = isDiaper
     ? 'Amount is only for feeding events.'
-    : 'Use amount for formula, colostrum, stored breast milk, or gripe water. For direct breastfeeding, leave it blank if you do not know.';
+    : 'Use amount for formula, colostrum, stored breast milk, gripe water, or Tylenol. For direct breastfeeding, leave it blank if you do not know.';
 
   if (isDiaper) {
     elements.amountValue.value = '';

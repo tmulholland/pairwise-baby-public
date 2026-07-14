@@ -2244,6 +2244,7 @@ function normalizeArloActivityType(value) {
     'colostrum',
     'formula',
     'gripe-water',
+    'tylenol',
     'poop-diaper',
     'pee-diaper',
     'both-diaper',
