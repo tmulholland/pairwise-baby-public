@@ -3,3 +3,6 @@ node_modules/
 
 .cache/
 .btn-api-key
+
+# Local SQLite databases, journals, and backups
+baby-names*.db*
