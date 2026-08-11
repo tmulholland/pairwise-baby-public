@@ -185,10 +185,14 @@
               <div id="arlo-chart-unit-buttons" class="arlo-chart-button-row"></div>
             </div>
           </div>
-          <p id="arlo-chart-caption" class="muted"></p>
-          <div class="arlo-chart-frame">
+          <div class="arlo-chart-view-header">
+            <p id="arlo-chart-caption" class="muted"></p>
+            <button id="arlo-chart-view-toggle" class="ghost-button small" type="button" aria-pressed="false">Show table</button>
+          </div>
+          <div id="arlo-chart-frame" class="arlo-chart-frame">
             <svg id="arlo-chart-svg" class="arlo-chart-svg" viewBox="0 0 720 280" role="img" aria-label="Arlo feeding trend chart"></svg>
           </div>
+          <div id="arlo-chart-table-wrap" class="arlo-chart-table-wrap hidden"></div>
         </div>
       </section>
 

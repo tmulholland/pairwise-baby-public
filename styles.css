@@ -1008,6 +1008,10 @@ code {
   gap: 18px;
 }
 
+.arlo-chart-panel.hidden {
+  display: none;
+}
+
 .arlo-chart-controls {
   display: grid;
   gap: 14px;
@@ -1022,6 +1026,17 @@ code {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.arlo-chart-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.arlo-chart-view-header .muted {
+  margin: 0;
 }
 
 .active-filter-button {
@@ -1043,6 +1058,42 @@ code {
   min-width: 640px;
   height: auto;
   display: block;
+}
+
+.arlo-chart-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.arlo-chart-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.arlo-chart-table th,
+.arlo-chart-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid rgba(98, 87, 79, 0.12);
+  white-space: nowrap;
+}
+
+.arlo-chart-table th {
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.arlo-chart-table th:last-child,
+.arlo-chart-table td:last-child {
+  text-align: right;
+}
+
+.arlo-chart-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .arlo-chart-surface {

@@ -27,7 +27,10 @@ const elements = {
   chartInferredButtons: document.querySelector('#arlo-chart-inferred-buttons'),
   chartUnitButtons: document.querySelector('#arlo-chart-unit-buttons'),
   chartCaption: document.querySelector('#arlo-chart-caption'),
+  chartViewToggle: document.querySelector('#arlo-chart-view-toggle'),
+  chartFrame: document.querySelector('#arlo-chart-frame'),
   chartSvg: document.querySelector('#arlo-chart-svg'),
+  chartTableWrap: document.querySelector('#arlo-chart-table-wrap'),
   eventList: document.querySelector('#arlo-event-list'),
   fuelBadge: document.querySelector('#arlo-fuel-badge'),
   fuelCard: document.querySelector('#arlo-fuel-card'),
@@ -89,6 +92,7 @@ const state = {
     inference: 'known',
     unit: 'ml',
     feedMode: 'raw',
+    view: 'chart',
   },
 };
 
@@ -110,6 +114,7 @@ function bindEvents() {
   elements.activityType.addEventListener('change', handleActivityChange);
   elements.poopColor.addEventListener('change', syncPoopColorWarning);
   elements.chartToggle.addEventListener('click', toggleChartPanel);
+  elements.chartViewToggle.addEventListener('click', toggleChartView);
   document.addEventListener('visibilitychange', handleVisibilityChange);
 }
 
@@ -969,6 +974,19 @@ function syncChartVisibility() {
   elements.chartToggle.textContent = state.chart.open ? 'Hide charting' : 'Show charting';
 }
 
+function toggleChartView() {
+  state.chart.view = state.chart.view === 'chart' ? 'table' : 'chart';
+  renderChart();
+}
+
+function syncChartView() {
+  const showTable = state.chart.view === 'table';
+  elements.chartFrame.classList.toggle('hidden', showTable);
+  elements.chartTableWrap.classList.toggle('hidden', !showTable);
+  elements.chartViewToggle.textContent = showTable ? 'Show chart' : 'Show table';
+  elements.chartViewToggle.setAttribute('aria-pressed', String(showTable));
+}
+
 function renderChartControls() {
   renderChartButtonGroup(elements.chartMetricButtons, CHART_METRIC_OPTIONS, state.chart.metric, (key) => {
     state.chart.metric = key;
@@ -1015,11 +1033,13 @@ function renderChartButtonGroup(container, options, activeKey, onClick, disabled
 
 function renderChart() {
   renderChartControls();
+  syncChartView();
 
   if (!state.trendSummaries.length) {
     elements.chartCaption.textContent = 'No feeding trend yet.';
     elements.chartSvg.setAttribute('viewBox', '0 0 720 280');
     elements.chartSvg.innerHTML = '';
+    elements.chartTableWrap.innerHTML = '<p class="muted">No feeding trend yet.</p>';
     return;
   }
 
@@ -1034,6 +1054,46 @@ function renderChart() {
   elements.chartCaption.textContent = `${label} over the last ${points.length} day${points.length === 1 ? '' : 's'} • ${formatChartTotal(total, unit)}`;
   elements.chartSvg.setAttribute('viewBox', `0 0 ${chartMarkup.width} ${chartMarkup.height}`);
   elements.chartSvg.innerHTML = chartMarkup.markup;
+  renderChartTable(points, label, unit);
+}
+
+function renderChartTable(points, label, unit) {
+  const table = document.createElement('table');
+  table.className = 'arlo-chart-table';
+
+  const thead = document.createElement('thead');
+  const headingRow = document.createElement('tr');
+  for (const heading of ['Date', label]) {
+    const th = document.createElement('th');
+    th.scope = 'col';
+    th.textContent = heading;
+    headingRow.append(th);
+  }
+  thead.append(headingRow);
+
+  const tbody = document.createElement('tbody');
+  for (const point of points) {
+    const row = document.createElement('tr');
+    const dateCell = document.createElement('td');
+    const valueCell = document.createElement('td');
+    dateCell.textContent = point.date;
+    valueCell.textContent = formatChartTableValue(point.value, unit);
+    row.append(dateCell, valueCell);
+    tbody.append(row);
+  }
+
+  table.append(thead, tbody);
+  elements.chartTableWrap.replaceChildren(table);
+}
+
+function formatChartTableValue(value, unit) {
+  if (unit === 'feeds') {
+    return String(Math.round(value));
+  }
+  if (unit === 'oz') {
+    return `${roundToOneDecimal(Number(value || 0) / ML_PER_OUNCE)} oz`;
+  }
+  return `${roundToOneDecimal(value)} mL`;
 }
 
 function buildChartPoints() {
