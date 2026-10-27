@@ -6,6 +6,12 @@ const emptyState = document.querySelector('#empty-state');
 const count = document.querySelector('#item-count');
 const message = document.querySelector('#form-message');
 const template = document.querySelector('#item-template');
+const editDialog = document.querySelector('#edit-dialog');
+const editForm = document.querySelector('#edit-form');
+const editNameInput = document.querySelector('#edit-name');
+const editQuantityInput = document.querySelector('#edit-quantity');
+const editError = document.querySelector('#edit-error');
+let activeEditItem = null;
 
 const OPENMOJI_ROOT = 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@15.1.0/color/618x618';
 const illustrations = [
@@ -85,27 +91,51 @@ async function loadItems() {
   }
 }
 
-async function editItem(item) {
-  const name = window.prompt('Item name', item.name);
-  if (name === null) return;
+function editItem(item) {
+  activeEditItem = item;
+  editNameInput.value = item.name;
+  editQuantityInput.value = item.quantity;
+  editError.textContent = '';
+  editError.className = 'form-message';
+  editDialog.showModal();
+  editQuantityInput.focus();
+  editQuantityInput.select();
+}
 
-  const quantity = window.prompt('Quantity or amount', item.quantity);
-  if (quantity === null) return;
+function closeEditDialog() {
+  editDialog.close();
+  activeEditItem = null;
+}
 
+editForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!activeEditItem) return;
+
+  const submit = editForm.querySelector('button[type="submit"]');
+  submit.disabled = true;
   try {
-    const data = await request(`/api/freezer/items/${item.id}`, {
+    const data = await request(`/api/freezer/items/${activeEditItem.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, quantity }),
+      body: JSON.stringify({ name: editNameInput.value, quantity: editQuantityInput.value }),
     });
     render(data.items);
     message.textContent = `${data.item.name} was updated. Its added date stayed the same.`;
     message.className = 'form-message success';
+    closeEditDialog();
   } catch (error) {
-    message.textContent = error.message;
-    message.className = 'form-message error';
+    editError.textContent = error.message;
+    editError.className = 'form-message error';
+  } finally {
+    submit.disabled = false;
   }
-}
+});
+
+document.querySelector('#edit-close').addEventListener('click', closeEditDialog);
+document.querySelector('#edit-cancel').addEventListener('click', closeEditDialog);
+editDialog.addEventListener('click', (event) => {
+  if (event.target === editDialog) closeEditDialog();
+});
 
 async function removeItem(item, card) {
   if (!window.confirm(`Remove “${item.name}” from the freezer?`)) return;

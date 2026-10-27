@@ -68,6 +68,31 @@
         <p>Food illustrations by <a href="https://openmoji.org/" target="_blank" rel="noreferrer">OpenMoji</a> · CC BY-SA 4.0</p>
       </footer>
     </main>
+    <dialog id="edit-dialog" class="edit-dialog">
+      <form id="edit-form" class="edit-form">
+        <div class="edit-heading">
+          <div>
+            <p class="step">Update item</p>
+            <h2>Edit freezer tile</h2>
+          </div>
+          <button id="edit-close" class="dialog-close" type="button" aria-label="Close edit dialog">×</button>
+        </div>
+        <label class="field">
+          <span>What is it?</span>
+          <input id="edit-name" name="name" type="text" maxlength="80" required />
+        </label>
+        <label class="field">
+          <span>How much?</span>
+          <input id="edit-quantity" name="quantity" type="text" maxlength="30" list="quantity-options" required />
+        </label>
+        <p class="edit-note">The original added date will stay the same.</p>
+        <div class="dialog-actions">
+          <button id="edit-cancel" class="cancel-button" type="button">Cancel</button>
+          <button class="add-button" type="submit">Save changes</button>
+        </div>
+        <p id="edit-error" class="form-message" role="alert"></p>
+      </form>
+    </dialog>
     <template id="item-template">
       <article class="freezer-card">
         <div class="card-actions">
