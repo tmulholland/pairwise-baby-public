@@ -36,6 +36,7 @@ initializeDatabase();
 initializeShowtimeDatabase();
 initializeFinaleDatabase();
 initializeArloDatabase();
+initializeFreezerDatabase();
 queueSummaryRefreshForAllNames();
 void initializeSsaPopularity(db);
 void initializeBtnMetadata(db);
@@ -77,6 +78,10 @@ app.get('/finale/combined', (_req, res) => {
 
 app.get('/arlo', (_req, res) => {
   res.sendFile(path.join(__dirname, 'arlo.html'));
+});
+
+app.get('/freezer', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'freezer.html'));
 });
 
 app.get('/results', (_req, res) => {
@@ -390,6 +395,32 @@ app.delete('/api/arlo/events/:eventId', (req, res) => {
   }
 });
 
+app.get('/api/freezer/items', (_req, res) => {
+  try {
+    res.json({ items: listFreezerItems() });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/freezer/items', (req, res) => {
+  try {
+    const item = addFreezerItem(req.body || {});
+    res.status(201).json({ item, items: listFreezerItems() });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.delete('/api/freezer/items/:itemId', (req, res) => {
+  try {
+    deleteFreezerItem(Number(req.params.itemId));
+    res.json({ items: listFreezerItems() });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.get('/showtime/:userSlug', (_req, res) => {
   res.sendFile(path.join(__dirname, 'showtime.html'));
 });
@@ -587,6 +618,54 @@ function initializeArloDatabase() {
   }
   if (!columns.has('breast_side')) {
     db.exec('ALTER TABLE arlo_events ADD COLUMN breast_side TEXT');
+  }
+}
+
+function initializeFreezerDatabase() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS freezer_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      quantity TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+}
+
+function listFreezerItems() {
+  return db.prepare(`
+    SELECT id, name, quantity, created_at AS createdAt
+    FROM freezer_items
+    ORDER BY datetime(created_at) DESC, id DESC
+  `).all();
+}
+
+function addFreezerItem(payload) {
+  const name = String(payload.name || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+  const quantity = String(payload.quantity || '').trim().replace(/\s+/g, ' ').slice(0, 30);
+
+  if (!name) {
+    throw new Error('Please enter an item name.');
+  }
+  if (!quantity) {
+    throw new Error('Please choose or enter an amount.');
+  }
+
+  const result = db.prepare('INSERT INTO freezer_items (name, quantity) VALUES (?, ?)').run(name, quantity);
+  return db.prepare(`
+    SELECT id, name, quantity, created_at AS createdAt
+    FROM freezer_items WHERE id = ?
+  `).get(result.lastInsertRowid);
+}
+
+function deleteFreezerItem(itemId) {
+  if (!Number.isInteger(itemId) || itemId < 1) {
+    throw new Error('Invalid freezer item.');
+  }
+
+  const result = db.prepare('DELETE FROM freezer_items WHERE id = ?').run(itemId);
+  if (!result.changes) {
+    throw new Error('That freezer item was not found.');
   }
 }
 

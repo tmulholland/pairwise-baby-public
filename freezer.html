@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#dff3f5" />
+    <title>Mulholland Freezer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/freezer.css" />
+  </head>
+  <body>
+    <main class="freezer-shell">
+      <header class="freezer-header">
+        <div class="brand-mark" aria-hidden="true">❄</div>
+        <div>
+          <p class="kicker">The Mulholland kitchen</p>
+          <h1>What’s in the freezer?</h1>
+          <p class="intro">A quick, shared peek at what’s tucked away for later.</p>
+        </div>
+      </header>
+
+      <section class="add-panel" aria-labelledby="add-heading">
+        <div class="panel-heading">
+          <div>
+            <p class="step">Stock it</p>
+            <h2 id="add-heading">Add something chilly</h2>
+          </div>
+          <span class="snow-dots" aria-hidden="true">✦ · ✦</span>
+        </div>
+
+        <form id="freezer-form" class="add-form">
+          <label class="field item-field">
+            <span>What is it?</span>
+            <input id="item-name" name="name" type="text" maxlength="80" placeholder="Chicken stock, frozen pizza…" autocomplete="off" required />
+          </label>
+          <label class="field amount-field">
+            <span>How much?</span>
+            <input id="item-quantity" name="quantity" type="text" maxlength="30" list="quantity-options" placeholder="2 or medium" autocomplete="off" required />
+            <datalist id="quantity-options">
+              <option value="Small"></option><option value="Medium"></option><option value="Large"></option>
+              <option value="1"></option><option value="2"></option><option value="3"></option><option value="5"></option><option value="9"></option>
+            </datalist>
+          </label>
+          <button class="add-button" type="submit"><span aria-hidden="true">＋</span> Add to freezer</button>
+        </form>
+        <p id="form-message" class="form-message" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="inventory" aria-labelledby="inventory-heading">
+        <div class="inventory-heading">
+          <div>
+            <p class="step">Inventory</p>
+            <h2 id="inventory-heading">On ice</h2>
+          </div>
+          <span id="item-count" class="count-pill">0 items</span>
+        </div>
+        <div id="freezer-grid" class="freezer-grid" aria-live="polite"></div>
+        <div id="empty-state" class="empty-state" hidden>
+          <span aria-hidden="true">🧊</span>
+          <h3>Plenty of room in here</h3>
+          <p>Add your first item above and it’ll show up here.</p>
+        </div>
+      </section>
+
+      <footer>
+        <p>Food illustrations by <a href="https://openmoji.org/" target="_blank" rel="noreferrer">OpenMoji</a> · CC BY-SA 4.0</p>
+      </footer>
+    </main>
+    <template id="item-template">
+      <article class="freezer-card">
+        <button class="delete-button" type="button" aria-label="Delete item" title="Remove from freezer">×</button>
+        <div class="illustration-wrap"><img class="item-illustration" alt="" /></div>
+        <div class="card-copy">
+          <h3 class="item-title"></h3>
+          <div class="item-meta">
+            <span class="quantity-badge"></span>
+            <time class="logged-date"></time>
+          </div>
+        </div>
+      </article>
+    </template>
+    <script src="/static/freezer.js"></script>
+  </body>
+</html>
