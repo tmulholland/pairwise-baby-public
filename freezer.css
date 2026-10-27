@@ -51,6 +51,7 @@ input:focus { border-color: #62aab1; box-shadow: 0 0 0 4px rgba(98,170,177,.15);
 .freezer-card:hover { transform: translateY(-3px); }
 .freezer-card.removing { opacity: .35; transform: scale(.97); }
 .illustration-wrap { display: grid; place-items: center; height: 180px; border-radius: 18px; background: linear-gradient(145deg, #dff5f4, #f7faf0); }
+.illustration-wrap.emoji-fallback { font-size: 6rem; line-height: 1; }
 .item-illustration { width: 126px; height: 126px; object-fit: contain; filter: drop-shadow(0 8px 8px rgba(24,55,62,.12)); }
 .delete-button { position: absolute; z-index: 1; top: 27px; right: 27px; display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid rgba(23,50,58,.09); border-radius: 50%; color: #536d71; background: rgba(255,255,255,.9); font-size: 1.4rem; line-height: 1; cursor: pointer; transition: color .15s, background .15s, transform .15s; }
 .delete-button:hover { color: white; background: var(--coral); transform: rotate(5deg); }
@@ -83,6 +84,7 @@ footer { padding: 16px 0 4px; color: var(--muted); font-size: .72rem; text-align
   .freezer-grid { grid-template-columns: 1fr; gap: 14px; }
   .freezer-card { display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: 14px; padding: 13px; }
   .illustration-wrap { height: 112px; }
+  .illustration-wrap.emoji-fallback { font-size: 4.2rem; }
   .item-illustration { width: 82px; height: 82px; }
   .card-copy { padding: 0 4px 0 0; }
   .delete-button { top: 9px; right: 9px; }

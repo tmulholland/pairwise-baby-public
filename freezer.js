@@ -7,21 +7,21 @@ const count = document.querySelector('#item-count');
 const message = document.querySelector('#form-message');
 const template = document.querySelector('#item-template');
 
-const OPENMOJI_ROOT = 'https://cdn.jsdelivr.net/npm/openmoji@15.1.0/color/618x618';
+const OPENMOJI_ROOT = 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@15.1.0/color/618x618';
 const illustrations = [
-  { words: ['pizza'], code: '1F355', label: 'pizza' },
-  { words: ['salmon', 'fish', 'cod', 'tilapia', 'trout'], code: '1F41F', label: 'fish' },
-  { words: ['tomato', 'marinara', 'red sauce'], code: '1F345', label: 'tomato' },
-  { words: ['rib', 'roast', 'steak', 'beef', 'patty', 'patties', 'meat'], code: '1F969', label: 'cut of meat' },
-  { words: ['hamburger', 'burger'], code: '1F354', label: 'hamburger' },
-  { words: ['chicken', 'poultry'], code: '1F357', label: 'chicken' },
-  { words: ['stock', 'broth', 'soup', 'stew', 'chili'], code: '1F372', label: 'pot of food' },
-  { words: ['bread', 'loaf', 'bun'], code: '1F35E', label: 'bread' },
-  { words: ['ice cream', 'gelato'], code: '1F368', label: 'ice cream' },
-  { words: ['fruit', 'berry', 'berries'], code: '1FAD0', label: 'blueberries' },
-  { words: ['vegetable', 'veggie', 'peas'], code: '1FADB', label: 'pea pod' },
+  { words: ['pizza'], code: '1F355', label: 'pizza', emoji: '🍕' },
+  { words: ['salmon', 'fish', 'cod', 'tilapia', 'trout'], code: '1F41F', label: 'fish', emoji: '🐟' },
+  { words: ['tomato', 'marinara', 'red sauce'], code: '1F345', label: 'tomato', emoji: '🍅' },
+  { words: ['rib', 'roast', 'steak', 'beef', 'patty', 'patties', 'meat'], code: '1F969', label: 'cut of meat', emoji: '🥩' },
+  { words: ['hamburger', 'burger'], code: '1F354', label: 'hamburger', emoji: '🍔' },
+  { words: ['chicken', 'poultry'], code: '1F357', label: 'chicken', emoji: '🍗' },
+  { words: ['stock', 'broth', 'soup', 'stew', 'chili'], code: '1F372', label: 'pot of food', emoji: '🍲' },
+  { words: ['bread', 'loaf', 'bun'], code: '1F35E', label: 'bread', emoji: '🍞' },
+  { words: ['ice cream', 'gelato'], code: '1F368', label: 'ice cream', emoji: '🍨' },
+  { words: ['fruit', 'berry', 'berries'], code: '1FAD0', label: 'blueberries', emoji: '🫐' },
+  { words: ['vegetable', 'veggie', 'peas'], code: '1FADB', label: 'pea pod', emoji: '🫛' },
 ];
-const fallback = { code: '1F9CA', label: 'ice cube' };
+const fallback = { code: '1F9CA', label: 'ice cube', emoji: '🧊' };
 
 function pickIllustration(name) {
   const normalized = name.toLowerCase();
@@ -47,8 +47,16 @@ function render(items) {
     const card = fragment.querySelector('.freezer-card');
     const art = pickIllustration(item.name);
     const image = fragment.querySelector('.item-illustration');
+    const illustrationWrap = fragment.querySelector('.illustration-wrap');
     image.src = imageUrl(art.code);
     image.alt = `Cartoon ${art.label}`;
+    image.addEventListener('error', () => {
+      image.remove();
+      illustrationWrap.textContent = art.emoji;
+      illustrationWrap.classList.add('emoji-fallback');
+      illustrationWrap.setAttribute('role', 'img');
+      illustrationWrap.setAttribute('aria-label', `Cartoon ${art.label}`);
+    }, { once: true });
     fragment.querySelector('.item-title').textContent = item.name;
     fragment.querySelector('.quantity-badge').textContent = item.quantity;
     const date = fragment.querySelector('.logged-date');
