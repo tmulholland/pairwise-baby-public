@@ -412,6 +412,15 @@ app.post('/api/freezer/items', (req, res) => {
   }
 });
 
+app.patch('/api/freezer/items/:itemId', (req, res) => {
+  try {
+    const item = updateFreezerItem(Number(req.params.itemId), req.body || {});
+    res.json({ item, items: listFreezerItems() });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.delete('/api/freezer/items/:itemId', (req, res) => {
   try {
     deleteFreezerItem(Number(req.params.itemId));
@@ -641,6 +650,33 @@ function listFreezerItems() {
 }
 
 function addFreezerItem(payload) {
+  const { name, quantity } = cleanFreezerItem(payload);
+
+  const result = db.prepare('INSERT INTO freezer_items (name, quantity) VALUES (?, ?)').run(name, quantity);
+  return db.prepare(`
+    SELECT id, name, quantity, created_at AS createdAt
+    FROM freezer_items WHERE id = ?
+  `).get(result.lastInsertRowid);
+}
+
+function updateFreezerItem(itemId, payload) {
+  if (!Number.isInteger(itemId) || itemId < 1) {
+    throw new Error('Invalid freezer item.');
+  }
+
+  const { name, quantity } = cleanFreezerItem(payload);
+  const result = db.prepare('UPDATE freezer_items SET name = ?, quantity = ? WHERE id = ?').run(name, quantity, itemId);
+  if (!result.changes) {
+    throw new Error('That freezer item was not found.');
+  }
+
+  return db.prepare(`
+    SELECT id, name, quantity, created_at AS createdAt
+    FROM freezer_items WHERE id = ?
+  `).get(itemId);
+}
+
+function cleanFreezerItem(payload) {
   const name = String(payload.name || '').trim().replace(/\s+/g, ' ').slice(0, 80);
   const quantity = String(payload.quantity || '').trim().replace(/\s+/g, ' ').slice(0, 30);
 
@@ -651,11 +687,7 @@ function addFreezerItem(payload) {
     throw new Error('Please choose or enter an amount.');
   }
 
-  const result = db.prepare('INSERT INTO freezer_items (name, quantity) VALUES (?, ?)').run(name, quantity);
-  return db.prepare(`
-    SELECT id, name, quantity, created_at AS createdAt
-    FROM freezer_items WHERE id = ?
-  `).get(result.lastInsertRowid);
+  return { name, quantity };
 }
 
 function deleteFreezerItem(itemId) {

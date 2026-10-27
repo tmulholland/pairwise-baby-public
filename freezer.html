@@ -70,7 +70,10 @@
     </main>
     <template id="item-template">
       <article class="freezer-card">
-        <button class="delete-button" type="button" aria-label="Delete item" title="Remove from freezer">×</button>
+        <div class="card-actions">
+          <button class="edit-button" type="button" aria-label="Edit item" title="Edit item">✎</button>
+          <button class="delete-button" type="button" aria-label="Delete item" title="Remove from freezer">×</button>
+        </div>
         <div class="illustration-wrap"><img class="item-illustration" alt="" /></div>
         <div class="card-copy">
           <h3 class="item-title"></h3>

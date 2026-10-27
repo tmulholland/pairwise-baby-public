@@ -62,6 +62,7 @@ function render(items) {
     const date = fragment.querySelector('.logged-date');
     date.textContent = `Added ${formatDate(item.createdAt)}`;
     date.dateTime = `${item.createdAt.replace(' ', 'T')}Z`;
+    fragment.querySelector('.edit-button').addEventListener('click', () => editItem(item));
     fragment.querySelector('.delete-button').addEventListener('click', () => removeItem(item, card));
     grid.append(fragment);
   }
@@ -78,6 +79,28 @@ async function loadItems() {
   try {
     const data = await request('/api/freezer/items');
     render(data.items);
+  } catch (error) {
+    message.textContent = error.message;
+    message.className = 'form-message error';
+  }
+}
+
+async function editItem(item) {
+  const name = window.prompt('Item name', item.name);
+  if (name === null) return;
+
+  const quantity = window.prompt('Quantity or amount', item.quantity);
+  if (quantity === null) return;
+
+  try {
+    const data = await request(`/api/freezer/items/${item.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, quantity }),
+    });
+    render(data.items);
+    message.textContent = `${data.item.name} was updated. Its added date stayed the same.`;
+    message.className = 'form-message success';
   } catch (error) {
     message.textContent = error.message;
     message.className = 'form-message error';
