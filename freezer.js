@@ -23,8 +23,13 @@ const illustrations = [
   { words: ['chocolate', 'fudge', 'brownie'], code: '1F36B', label: 'chocolate', emoji: '🍫' },
   { words: ['spaghetti', 'pasta', 'noodle', 'bolognese', 'alfredo', 'pesto', 'meat sauce'], code: '1F35D', label: 'spaghetti', emoji: '🍝' },
   { words: ['swiss cheese', 'cheese', 'cheddar', 'mozzarella', 'provolone'], code: '1F9C0', label: 'cheese wedge', emoji: '🧀' },
-  { words: ['sausage', 'brat', 'bratwurst', 'hot dog'], code: '1F32D', label: 'sausage', emoji: '🌭' },
-  { words: ['pork', 'bacon', 'ham'], code: '1F953', label: 'bacon', emoji: '🥓' },
+  { words: ['acai bowl', 'açaí bowl', 'bowl'], code: '1F963', label: 'bowl with spoon', emoji: '🥣' },
+  { words: ['hamburger bun', 'burger bun'], code: '1F35E', label: 'bread', emoji: '🍞' },
+  { words: ['chicken sausage', 'chicken breakfast sausage', 'turkey sausage', 'chicken'], code: '1F357', label: 'chicken', emoji: '🍗' },
+  { words: ['bacon'], code: '1F953', label: 'bacon', emoji: '🥓' },
+  { words: ['pork sausage', 'breakfast pork sausage', 'pork chop', 'pork', 'ham'], code: '1F416', label: 'pig', emoji: '🐖' },
+  { words: ['hot dog'], code: '1F32D', label: 'hot dog', emoji: '🌭' },
+  { words: ['sausage', 'brat', 'bratwurst'], code: '1F969', label: 'meat', emoji: '🥩' },
   { words: ['waffle'], code: '1F9C7', label: 'waffle', emoji: '🧇' },
   { words: ['pancake', 'flapjack'], code: '1F95E', label: 'pancakes', emoji: '🥞' },
   { words: ['egg', 'quiche', 'frittata'], code: '1F95A', label: 'egg', emoji: '🥚' },
@@ -37,7 +42,7 @@ const illustrations = [
   { words: ['tomato', 'marinara', 'red sauce', 'pizza sauce'], code: '1F345', label: 'tomato', emoji: '🍅' },
   { words: ['hamburger', 'burger'], code: '1F354', label: 'hamburger', emoji: '🍔' },
   { words: ['rib', 'roast', 'steak', 'beef', 'patty', 'patties', 'meatball', 'meat'], code: '1F969', label: 'cut of meat', emoji: '🥩' },
-  { words: ['chicken', 'poultry'], code: '1F357', label: 'chicken', emoji: '🍗' },
+  { words: ['poultry'], code: '1F357', label: 'chicken', emoji: '🍗' },
   { words: ['stock', 'broth', 'soup', 'stew', 'chili'], code: '1F372', label: 'pot of food', emoji: '🍲' },
   { words: ['rice', 'risotto'], code: '1F35A', label: 'rice', emoji: '🍚' },
   { words: ['french fry', 'fries', 'tater tot'], code: '1F35F', label: 'french fries', emoji: '🍟' },
@@ -61,8 +66,22 @@ const illustrations = [
 const fallback = { code: '1F9CA', label: 'ice cube', emoji: '🧊' };
 
 function pickIllustration(name) {
-  const normalized = name.toLowerCase();
-  return illustrations.find((entry) => entry.words.some((word) => normalized.includes(word))) || fallback;
+  const normalized = normalizeSearchText(name);
+  return illustrations.find((entry) => entry.words.some((word) => matchesFoodTerm(normalized, word))) || fallback;
+}
+
+function normalizeSearchText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function matchesFoodTerm(normalizedName, term) {
+  const normalizedTerm = normalizeSearchText(term);
+  const escapedTerm = normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pluralSuffix = normalizedTerm.endsWith('s') ? '' : '(?:s|es)?';
+  return new RegExp(`(?:^|[^a-z0-9])${escapedTerm}${pluralSuffix}(?=$|[^a-z0-9])`).test(normalizedName);
 }
 
 function imageUrl(code) {
