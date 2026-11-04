@@ -85,6 +85,12 @@
           <span>How much?</span>
           <input id="edit-quantity" name="quantity" type="text" maxlength="30" list="quantity-options" required />
         </label>
+        <label class="field">
+          <span>Tile image</span>
+          <select id="edit-illustration" name="illustrationKey">
+            <option value="">Automatic — match the item name</option>
+          </select>
+        </label>
         <p class="edit-note">The original added date will stay the same.</p>
         <div class="dialog-actions">
           <button id="edit-cancel" class="cancel-button" type="button">Cancel</button>
@@ -96,6 +102,7 @@
     <template id="item-template">
       <article class="freezer-card">
         <div class="card-actions">
+          <button class="image-button" type="button" aria-label="Choose tile image" title="Choose tile image">☺</button>
           <button class="edit-button" type="button" aria-label="Edit item" title="Edit item">✎</button>
           <button class="delete-button" type="button" aria-label="Delete item" title="Remove from freezer">×</button>
         </div>

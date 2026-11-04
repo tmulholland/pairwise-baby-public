@@ -10,6 +10,7 @@ const editDialog = document.querySelector('#edit-dialog');
 const editForm = document.querySelector('#edit-form');
 const editNameInput = document.querySelector('#edit-name');
 const editQuantityInput = document.querySelector('#edit-quantity');
+const editIllustrationSelect = document.querySelector('#edit-illustration');
 const editError = document.querySelector('#edit-error');
 let activeEditItem = null;
 const API_BASE = document.body.dataset.apiBase || '/api/freezer/items';
@@ -65,6 +66,16 @@ const illustrations = [
 ];
 const fallback = { code: '1F9CA', label: 'ice cube', emoji: '🧊' };
 
+const illustrationChoices = [...illustrations, fallback].filter(
+  (entry, index, entries) => entries.findIndex((candidate) => candidate.code === entry.code) === index,
+);
+for (const choice of illustrationChoices) {
+  const option = document.createElement('option');
+  option.value = choice.code;
+  option.textContent = `${choice.emoji} ${choice.label}`;
+  editIllustrationSelect.append(option);
+}
+
 function pickIllustration(name) {
   const normalized = normalizeSearchText(name);
   return illustrations.find((entry) => entry.words.some((word) => matchesFoodTerm(normalized, word))) || fallback;
@@ -101,7 +112,8 @@ function render(items) {
   for (const item of items) {
     const fragment = template.content.cloneNode(true);
     const card = fragment.querySelector('.freezer-card');
-    const art = pickIllustration(item.name);
+    const art = illustrations.find((entry) => entry.code === item.illustrationKey)
+      || (fallback.code === item.illustrationKey ? fallback : pickIllustration(item.name));
     const image = fragment.querySelector('.item-illustration');
     const illustrationWrap = fragment.querySelector('.illustration-wrap');
     image.src = imageUrl(art.code);
@@ -118,6 +130,7 @@ function render(items) {
     const date = fragment.querySelector('.logged-date');
     date.textContent = `Added ${formatDate(item.createdAt)}`;
     date.dateTime = `${item.createdAt.replace(' ', 'T')}Z`;
+    fragment.querySelector('.image-button').addEventListener('click', () => editItem(item, 'image'));
     fragment.querySelector('.edit-button').addEventListener('click', () => editItem(item));
     fragment.querySelector('.delete-button').addEventListener('click', () => removeItem(item, card));
     grid.append(fragment);
@@ -141,15 +154,20 @@ async function loadItems() {
   }
 }
 
-function editItem(item) {
+function editItem(item, focusTarget = 'quantity') {
   activeEditItem = item;
   editNameInput.value = item.name;
   editQuantityInput.value = item.quantity;
+  editIllustrationSelect.value = item.illustrationKey || '';
   editError.textContent = '';
   editError.className = 'form-message';
   editDialog.showModal();
-  editQuantityInput.focus();
-  editQuantityInput.select();
+  if (focusTarget === 'image') {
+    editIllustrationSelect.focus();
+  } else {
+    editQuantityInput.focus();
+    editQuantityInput.select();
+  }
 }
 
 function closeEditDialog() {
@@ -167,7 +185,11 @@ editForm.addEventListener('submit', async (event) => {
     const data = await request(`${API_BASE}/${activeEditItem.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: editNameInput.value, quantity: editQuantityInput.value }),
+      body: JSON.stringify({
+        name: editNameInput.value,
+        quantity: editQuantityInput.value,
+        illustrationKey: editIllustrationSelect.value,
+      }),
     });
     render(data.items);
     message.textContent = `${data.item.name} was updated. Its added date stayed the same.`;

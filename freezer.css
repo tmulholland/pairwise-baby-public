@@ -37,7 +37,8 @@ h1 { margin: 0; font-size: clamp(2.35rem, 7vw, 4.6rem); line-height: .98; letter
 .field { display: grid; gap: 8px; min-width: 0; }
 .field span { font-size: .84rem; font-weight: 700; color: var(--muted); }
 input { width: 100%; min-height: 52px; padding: 0 16px; border: 1px solid var(--line); border-radius: 15px; color: var(--ink); background: var(--cream); outline: none; }
-input:focus { border-color: #62aab1; box-shadow: 0 0 0 4px rgba(98,170,177,.15); }
+select { width: 100%; min-height: 52px; padding: 0 42px 0 16px; border: 1px solid var(--line); border-radius: 15px; color: var(--ink); background: var(--cream); outline: none; }
+input:focus, select:focus { border-color: #62aab1; box-shadow: 0 0 0 4px rgba(98,170,177,.15); }
 .add-button { min-height: 52px; padding: 0 20px; border: 0; border-radius: 15px; color: white; background: var(--coral); font-weight: 700; cursor: pointer; box-shadow: 0 9px 18px rgba(229,111,89,.24); transition: transform .15s, box-shadow .15s; white-space: nowrap; }
 .add-button:hover { transform: translateY(-2px); box-shadow: 0 12px 22px rgba(229,111,89,.3); }
 .add-button:disabled { opacity: .55; cursor: wait; }
@@ -54,7 +55,8 @@ input:focus { border-color: #62aab1; box-shadow: 0 0 0 4px rgba(98,170,177,.15);
 .illustration-wrap.emoji-fallback { font-size: 6rem; line-height: 1; }
 .item-illustration { width: 126px; height: 126px; object-fit: contain; filter: drop-shadow(0 8px 8px rgba(24,55,62,.12)); }
 .card-actions { position: absolute; z-index: 1; top: 27px; right: 27px; display: flex; gap: 7px; }
-.edit-button, .delete-button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid rgba(23,50,58,.09); border-radius: 50%; color: #536d71; background: rgba(255,255,255,.92); font-size: 1.25rem; line-height: 1; cursor: pointer; transition: color .15s, background .15s, transform .15s; }
+.image-button, .edit-button, .delete-button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid rgba(23,50,58,.09); border-radius: 50%; color: #536d71; background: rgba(255,255,255,.92); font-size: 1.25rem; line-height: 1; cursor: pointer; transition: color .15s, background .15s, transform .15s; }
+.image-button:hover { color: white; background: #639fca; transform: rotate(5deg); }
 .edit-button:hover { color: white; background: var(--deep-aqua); transform: rotate(-5deg); }
 .delete-button:hover { color: white; background: var(--coral); transform: rotate(5deg); }
 .card-copy { padding: 17px 3px 2px; }

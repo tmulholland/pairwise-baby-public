@@ -689,6 +689,13 @@ function initializeFreezerDatabase() {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  for (const table of ['freezer_items', 'moms_freezer_items']) {
+    const columns = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((column) => column.name));
+    if (!columns.has('illustration_key')) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN illustration_key TEXT`);
+    }
+  }
 }
 
 function getFreezerTable(tableName) {
@@ -701,7 +708,7 @@ function getFreezerTable(tableName) {
 function listFreezerItems(tableName = 'freezer_items') {
   const table = getFreezerTable(tableName);
   return db.prepare(`
-    SELECT id, name, quantity, created_at AS createdAt
+    SELECT id, name, quantity, illustration_key AS illustrationKey, created_at AS createdAt
     FROM ${table}
     ORDER BY datetime(created_at) DESC, id DESC
   `).all();
@@ -713,7 +720,7 @@ function addFreezerItem(payload, tableName = 'freezer_items') {
 
   const result = db.prepare(`INSERT INTO ${table} (name, quantity) VALUES (?, ?)`).run(name, quantity);
   return db.prepare(`
-    SELECT id, name, quantity, created_at AS createdAt
+    SELECT id, name, quantity, illustration_key AS illustrationKey, created_at AS createdAt
     FROM ${table} WHERE id = ?
   `).get(result.lastInsertRowid);
 }
@@ -725,13 +732,14 @@ function updateFreezerItem(itemId, payload, tableName = 'freezer_items') {
   }
 
   const { name, quantity } = cleanFreezerItem(payload);
-  const result = db.prepare(`UPDATE ${table} SET name = ?, quantity = ? WHERE id = ?`).run(name, quantity, itemId);
+  const illustrationKey = cleanFreezerIllustrationKey(payload.illustrationKey);
+  const result = db.prepare(`UPDATE ${table} SET name = ?, quantity = ?, illustration_key = ? WHERE id = ?`).run(name, quantity, illustrationKey, itemId);
   if (!result.changes) {
     throw new Error('That freezer item was not found.');
   }
 
   return db.prepare(`
-    SELECT id, name, quantity, created_at AS createdAt
+    SELECT id, name, quantity, illustration_key AS illustrationKey, created_at AS createdAt
     FROM ${table} WHERE id = ?
   `).get(itemId);
 }
@@ -748,6 +756,17 @@ function cleanFreezerItem(payload) {
   }
 
   return { name, quantity };
+}
+
+function cleanFreezerIllustrationKey(value) {
+  const key = String(value || '').trim().toUpperCase();
+  if (!key) {
+    return null;
+  }
+  if (!/^[0-9A-F]+(?:-[0-9A-F]+)*$/.test(key) || key.length > 40) {
+    throw new Error('Choose a valid freezer image.');
+  }
+  return key;
 }
 
 function deleteFreezerItem(itemId, tableName = 'freezer_items') {
