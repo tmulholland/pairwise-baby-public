@@ -12,6 +12,7 @@ const editNameInput = document.querySelector('#edit-name');
 const editQuantityInput = document.querySelector('#edit-quantity');
 const editError = document.querySelector('#edit-error');
 let activeEditItem = null;
+const API_BASE = document.body.dataset.apiBase || '/api/freezer/items';
 
 const OPENMOJI_ROOT = 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@15.1.0/color/618x618';
 const illustrations = [
@@ -83,7 +84,7 @@ async function request(url, options) {
 
 async function loadItems() {
   try {
-    const data = await request('/api/freezer/items');
+    const data = await request(API_BASE);
     render(data.items);
   } catch (error) {
     message.textContent = error.message;
@@ -114,7 +115,7 @@ editForm.addEventListener('submit', async (event) => {
   const submit = editForm.querySelector('button[type="submit"]');
   submit.disabled = true;
   try {
-    const data = await request(`/api/freezer/items/${activeEditItem.id}`, {
+    const data = await request(`${API_BASE}/${activeEditItem.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: editNameInput.value, quantity: editQuantityInput.value }),
@@ -141,7 +142,7 @@ async function removeItem(item, card) {
   if (!window.confirm(`Remove “${item.name}” from the freezer?`)) return;
   card.classList.add('removing');
   try {
-    const data = await request(`/api/freezer/items/${item.id}`, { method: 'DELETE' });
+    const data = await request(`${API_BASE}/${item.id}`, { method: 'DELETE' });
     render(data.items);
   } catch (error) {
     card.classList.remove('removing');
@@ -156,7 +157,7 @@ form.addEventListener('submit', async (event) => {
   submit.disabled = true;
   message.textContent = '';
   try {
-    const data = await request('/api/freezer/items', {
+    const data = await request(API_BASE, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: nameInput.value, quantity: quantityInput.value }),

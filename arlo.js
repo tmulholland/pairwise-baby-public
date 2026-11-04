@@ -38,11 +38,12 @@ const elements = {
 
 const POLL_INTERVAL_MS = 20000;
 const ML_PER_OUNCE = 29.5735;
-const FEEDING_ACTIVITY_TYPES = ['breastfeeding', 'stored-breast-milk', 'colostrum', 'formula', 'gripe-water'];
+const FEEDING_ACTIVITY_TYPES = ['breastfeeding', 'stored-breast-milk', 'milk-pop', 'colostrum', 'formula', 'gripe-water'];
 const FEEDING_ACTIVITY_OPTIONS = [
   { key: 'total', label: 'Total', color: '#83361f' },
   { key: 'breastfeeding', label: 'Breastfeeding', color: '#f3a9bf' },
   { key: 'stored-breast-milk', label: 'Stored milk', color: '#6b7280' },
+  { key: 'milk-pop', label: 'Milk pop', color: '#8bdcf4' },
   { key: 'colostrum', label: 'Colostrum', color: '#e5c44e' },
   { key: 'formula', label: 'Formula', color: '#97cf45' },
   { key: 'gripe-water', label: 'Gripe water', color: '#3b82f6' },
@@ -50,6 +51,7 @@ const FEEDING_ACTIVITY_OPTIONS = [
 const DAILY_PLOT_ACTIVITY_TYPES = [
   { activityType: 'breastfeeding', colorClass: 'timeline-dot-breastfeeding' },
   { activityType: 'stored-breast-milk', colorClass: 'timeline-dot-stored-milk' },
+  { activityType: 'milk-pop', colorClass: 'timeline-dot-milk-pop' },
   { activityType: 'colostrum', colorClass: 'timeline-dot-colostrum' },
   { activityType: 'formula', colorClass: 'timeline-dot-formula' },
   { activityType: 'gripe-water', colorClass: 'timeline-dot-gripe-water' },
@@ -73,7 +75,7 @@ const CHART_FEED_MODE_OPTIONS = [
   { key: 'raw', label: 'Raw' },
   { key: 'adjusted', label: 'Adjusted' },
 ];
-const ADJUSTED_FEED_ACTIVITY_TYPES = ['breastfeeding', 'stored-breast-milk', 'colostrum', 'formula'];
+const ADJUSTED_FEED_ACTIVITY_TYPES = ['breastfeeding', 'stored-breast-milk', 'milk-pop', 'colostrum', 'formula'];
 const ADJUSTED_FEED_WINDOW_MINUTES = 45;
 const DEFAULT_FUEL_GAUGE_TAU_HOURS = 1.25;
 const FUEL_GAUGE_TAU_OPTIONS = [1, 1.25, 1.5];
@@ -511,7 +513,7 @@ function renderFeedingSummaryCard(summary) {
   card.className = 'summary-card';
 
   const totalCount = activityTypes.reduce((sum, activityType) => sum + getCount(summary, activityType), 0);
-  const totalAmount = getCombinedFeedAmount(summary, ['stored-breast-milk', 'colostrum', 'formula', 'gripe-water']);
+  const totalAmount = getCombinedFeedAmount(summary, ['stored-breast-milk', 'milk-pop', 'colostrum', 'formula', 'gripe-water']);
   const latest = getLatestAcrossActivities(summary, activityTypes);
   const parts = [`${totalCount} feeding${totalCount === 1 ? '' : 's'}`];
 
@@ -676,6 +678,7 @@ function formatActivityLabel(activityType) {
   const labels = {
     breastfeeding: 'Breastfeeding',
     'stored-breast-milk': 'Stored breast milk',
+    'milk-pop': 'Milk pop',
     colostrum: 'Colostrum',
     formula: 'Formula',
     'gripe-water': 'Gripe water',
@@ -852,7 +855,7 @@ function syncAmountState() {
   const isDiaper = diaperActivities.has(elements.activityType.value);
   const supportsPoopColor = new Set(['poop-diaper', 'both-diaper']).has(elements.activityType.value);
   const supportsShart = supportsPoopColor;
-  const supportsVitaminD = new Set(['breastfeeding', 'stored-breast-milk', 'colostrum', 'formula']).has(elements.activityType.value);
+  const supportsVitaminD = new Set(['breastfeeding', 'stored-breast-milk', 'milk-pop', 'colostrum', 'formula']).has(elements.activityType.value);
   const supportsBreastSide = elements.activityType.value === 'breastfeeding';
   elements.amountValue.disabled = isDiaper;
   elements.amountUnit.disabled = isDiaper;
@@ -866,7 +869,7 @@ function syncAmountState() {
   elements.breastSide.disabled = !supportsBreastSide;
   elements.amountHelp.textContent = isDiaper
     ? 'Amount is only for feeding events.'
-    : 'Use amount for formula, colostrum, stored breast milk, gripe water, or Tylenol. For direct breastfeeding, leave it blank if you do not know.';
+    : 'Use amount for formula, colostrum, stored breast milk, milk pop, gripe water, or Tylenol. For direct breastfeeding, leave it blank if you do not know.';
 
   if (isDiaper) {
     elements.amountValue.value = '';

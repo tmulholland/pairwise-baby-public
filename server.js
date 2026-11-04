@@ -84,6 +84,10 @@ app.get('/freezer', (_req, res) => {
   res.sendFile(path.join(__dirname, 'freezer.html'));
 });
 
+app.get('/moms-freezer', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'moms-freezer.html'));
+});
+
 app.get('/results', (_req, res) => {
   res.sendFile(path.join(__dirname, 'results.html'));
 });
@@ -430,6 +434,41 @@ app.delete('/api/freezer/items/:itemId', (req, res) => {
   }
 });
 
+app.get('/api/moms-freezer/items', (_req, res) => {
+  try {
+    res.json({ items: listFreezerItems('moms_freezer_items') });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.post('/api/moms-freezer/items', (req, res) => {
+  try {
+    const item = addFreezerItem(req.body || {}, 'moms_freezer_items');
+    res.status(201).json({ item, items: listFreezerItems('moms_freezer_items') });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.patch('/api/moms-freezer/items/:itemId', (req, res) => {
+  try {
+    const item = updateFreezerItem(Number(req.params.itemId), req.body || {}, 'moms_freezer_items');
+    res.json({ item, items: listFreezerItems('moms_freezer_items') });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+app.delete('/api/moms-freezer/items/:itemId', (req, res) => {
+  try {
+    deleteFreezerItem(Number(req.params.itemId), 'moms_freezer_items');
+    res.json({ items: listFreezerItems('moms_freezer_items') });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
 app.get('/showtime/:userSlug', (_req, res) => {
   res.sendFile(path.join(__dirname, 'showtime.html'));
 });
@@ -638,41 +677,58 @@ function initializeFreezerDatabase() {
       quantity TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS moms_freezer_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      quantity TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 }
 
-function listFreezerItems() {
+function getFreezerTable(tableName) {
+  if (!['freezer_items', 'moms_freezer_items'].includes(tableName)) {
+    throw new Error('Invalid freezer inventory.');
+  }
+  return tableName;
+}
+
+function listFreezerItems(tableName = 'freezer_items') {
+  const table = getFreezerTable(tableName);
   return db.prepare(`
     SELECT id, name, quantity, created_at AS createdAt
-    FROM freezer_items
+    FROM ${table}
     ORDER BY datetime(created_at) DESC, id DESC
   `).all();
 }
 
-function addFreezerItem(payload) {
+function addFreezerItem(payload, tableName = 'freezer_items') {
+  const table = getFreezerTable(tableName);
   const { name, quantity } = cleanFreezerItem(payload);
 
-  const result = db.prepare('INSERT INTO freezer_items (name, quantity) VALUES (?, ?)').run(name, quantity);
+  const result = db.prepare(`INSERT INTO ${table} (name, quantity) VALUES (?, ?)`).run(name, quantity);
   return db.prepare(`
     SELECT id, name, quantity, created_at AS createdAt
-    FROM freezer_items WHERE id = ?
+    FROM ${table} WHERE id = ?
   `).get(result.lastInsertRowid);
 }
 
-function updateFreezerItem(itemId, payload) {
+function updateFreezerItem(itemId, payload, tableName = 'freezer_items') {
+  const table = getFreezerTable(tableName);
   if (!Number.isInteger(itemId) || itemId < 1) {
     throw new Error('Invalid freezer item.');
   }
 
   const { name, quantity } = cleanFreezerItem(payload);
-  const result = db.prepare('UPDATE freezer_items SET name = ?, quantity = ? WHERE id = ?').run(name, quantity, itemId);
+  const result = db.prepare(`UPDATE ${table} SET name = ?, quantity = ? WHERE id = ?`).run(name, quantity, itemId);
   if (!result.changes) {
     throw new Error('That freezer item was not found.');
   }
 
   return db.prepare(`
     SELECT id, name, quantity, created_at AS createdAt
-    FROM freezer_items WHERE id = ?
+    FROM ${table} WHERE id = ?
   `).get(itemId);
 }
 
@@ -690,12 +746,13 @@ function cleanFreezerItem(payload) {
   return { name, quantity };
 }
 
-function deleteFreezerItem(itemId) {
+function deleteFreezerItem(itemId, tableName = 'freezer_items') {
+  const table = getFreezerTable(tableName);
   if (!Number.isInteger(itemId) || itemId < 1) {
     throw new Error('Invalid freezer item.');
   }
 
-  const result = db.prepare('DELETE FROM freezer_items WHERE id = ?').run(itemId);
+  const result = db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(itemId);
   if (!result.changes) {
     throw new Error('That freezer item was not found.');
   }
@@ -1657,7 +1714,7 @@ function buildArloDailySummary(date) {
       ) AS total_amount_ml
     FROM arlo_events
     WHERE event_date = ?
-      AND activity_type IN ('breastfeeding', 'stored-breast-milk', 'colostrum', 'formula', 'gripe-water')
+      AND activity_type IN ('breastfeeding', 'stored-breast-milk', 'milk-pop', 'colostrum', 'formula', 'gripe-water')
     GROUP BY activity_type
   `).all(OUNCES_TO_ML, date);
 
@@ -1705,7 +1762,7 @@ function getArloFeedHistory(now, lookbackDays = ARLO_FUEL_LOOKBACK_DAYS) {
     SELECT id, activity_type, event_date, event_time, amount_value, amount_unit, vitamin_d, breast_side, created_at
     FROM arlo_events
     WHERE event_date BETWEEN ? AND ?
-      AND activity_type IN ('breastfeeding', 'stored-breast-milk', 'colostrum', 'formula')
+      AND activity_type IN ('breastfeeding', 'stored-breast-milk', 'milk-pop', 'colostrum', 'formula')
     ORDER BY event_date ASC, event_time ASC, id ASC
   `).all(startDate, endDate);
 
@@ -2352,6 +2409,7 @@ function normalizeArloActivityType(value) {
   const allowed = new Set([
     'breastfeeding',
     'stored-breast-milk',
+    'milk-pop',
     'colostrum',
     'formula',
     'gripe-water',
@@ -2430,7 +2488,7 @@ function normalizePoopColor(value, activityType) {
 }
 
 function normalizeVitaminD(value, activityType) {
-  const supportsVitaminD = new Set(['breastfeeding', 'stored-breast-milk', 'colostrum', 'formula']);
+  const supportsVitaminD = new Set(['breastfeeding', 'stored-breast-milk', 'milk-pop', 'colostrum', 'formula']);
   if (!supportsVitaminD.has(activityType)) {
     return false;
   }

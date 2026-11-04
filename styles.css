@@ -759,6 +759,14 @@ code {
   border: 1px solid rgba(98, 87, 79, 0.35);
 }
 
+.timeline-dot-milk-pop {
+  background: #8bdcf4;
+  border: 1px solid #4db8dc;
+  box-shadow:
+    0 0 0 2px rgba(255, 250, 243, 0.9),
+    0 0 8px rgba(77, 184, 220, 0.48);
+}
+
 .timeline-dot-colostrum {
   background: #e5c44e;
 }
