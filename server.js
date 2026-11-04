@@ -84,8 +84,12 @@ app.get('/freezer', (_req, res) => {
   res.sendFile(path.join(__dirname, 'freezer.html'));
 });
 
-app.get('/moms-freezer', (_req, res) => {
+app.get('/grandmas-freezer', (_req, res) => {
   res.sendFile(path.join(__dirname, 'moms-freezer.html'));
+});
+
+app.get('/moms-freezer', (_req, res) => {
+  res.redirect(301, '/grandmas-freezer');
 });
 
 app.get('/results', (_req, res) => {
