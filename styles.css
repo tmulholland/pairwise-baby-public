@@ -741,7 +741,7 @@ code {
 
 .summary-timeline-iron-letter {
   display: inline-block;
-  width: 8px;
+  width: 7px;
   height: 10px;
   overflow: hidden;
   color: transparent;
@@ -759,7 +759,7 @@ code {
 }
 
 .summary-timeline-supplement-pair .summary-timeline-iron-letter {
-  width: 7px;
+  width: 6px;
   height: 9px;
 }
 
