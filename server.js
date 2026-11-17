@@ -650,6 +650,7 @@ function initializeArloDatabase() {
       poop_color TEXT,
       shart INTEGER NOT NULL DEFAULT 0,
       vitamin_d INTEGER NOT NULL DEFAULT 0,
+      iron_multivitamin INTEGER NOT NULL DEFAULT 0,
       breast_side TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
@@ -667,6 +668,9 @@ function initializeArloDatabase() {
   }
   if (!columns.has('vitamin_d')) {
     db.exec('ALTER TABLE arlo_events ADD COLUMN vitamin_d INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!columns.has('iron_multivitamin')) {
+    db.exec('ALTER TABLE arlo_events ADD COLUMN iron_multivitamin INTEGER NOT NULL DEFAULT 0');
   }
   if (!columns.has('breast_side')) {
     db.exec('ALTER TABLE arlo_events ADD COLUMN breast_side TEXT');
@@ -1638,7 +1642,7 @@ function getFinaleCombinationKey(firstNameId, middleNameId) {
 function buildArloState(options = {}) {
   const tauHours = normalizeArloTauHours(options.tauHours);
   const recentEvents = db.prepare(`
-    SELECT id, activity_type, event_date, event_time, amount_value, amount_unit, poop_color, shart, vitamin_d, breast_side, created_at
+    SELECT id, activity_type, event_date, event_time, amount_value, amount_unit, poop_color, shart, vitamin_d, iron_multivitamin, breast_side, created_at
     FROM arlo_events
     ORDER BY event_date DESC, event_time DESC, id DESC
     LIMIT ?
@@ -1652,6 +1656,7 @@ function buildArloState(options = {}) {
     poopColor: row.poop_color || '',
     shart: Boolean(row.shart),
     vitaminD: Boolean(row.vitamin_d),
+    ironMultivitamin: Boolean(row.iron_multivitamin),
     breastSide: row.breast_side || '',
     createdAt: row.created_at,
   }));
@@ -1704,7 +1709,7 @@ function buildArloDailySummary(date) {
   `).all(date);
   const latestByActivity = Object.fromEntries(latestRows.map((row) => [row.activity_type, row.event_time]));
   const eventTimesRows = db.prepare(`
-    SELECT activity_type, event_time, shart, vitamin_d, breast_side
+    SELECT activity_type, event_time, shart, vitamin_d, iron_multivitamin, breast_side
     FROM arlo_events
     WHERE event_date = ?
     ORDER BY event_time ASC, id ASC
@@ -1719,6 +1724,7 @@ function buildArloDailySummary(date) {
       eventTime: row.event_time,
       shart: Boolean(row.shart),
       vitaminD: Boolean(row.vitamin_d),
+      ironMultivitamin: Boolean(row.iron_multivitamin),
       breastSide: row.breast_side || '',
     });
   }
@@ -1755,9 +1761,11 @@ function buildArloDailySummary(date) {
       missingVolumeCount,
       totalAmountMl,
     };
-    knownFeedVolumeMl += totalAmountMl;
-    knownVolumeFeedCount += knownVolumeCount;
-    missingVolumeFeedCount += missingVolumeCount;
+    if (row.activity_type !== 'milk-pop') {
+      knownFeedVolumeMl += totalAmountMl;
+      knownVolumeFeedCount += knownVolumeCount;
+      missingVolumeFeedCount += missingVolumeCount;
+    }
   }
 
   return {
@@ -1782,10 +1790,10 @@ function getArloFeedHistory(now, lookbackDays = ARLO_FUEL_LOOKBACK_DAYS) {
   const startDate = formatDateInTimeZone(start, ARLO_TIME_ZONE);
   const endDate = formatDateInTimeZone(now, ARLO_TIME_ZONE);
   const rows = db.prepare(`
-    SELECT id, activity_type, event_date, event_time, amount_value, amount_unit, vitamin_d, breast_side, created_at
+    SELECT id, activity_type, event_date, event_time, amount_value, amount_unit, vitamin_d, iron_multivitamin, breast_side, created_at
     FROM arlo_events
     WHERE event_date BETWEEN ? AND ?
-      AND activity_type IN ('breastfeeding', 'stored-breast-milk', 'milk-pop', 'colostrum', 'formula')
+      AND activity_type IN ('breastfeeding', 'stored-breast-milk', 'colostrum', 'formula')
     ORDER BY event_date ASC, event_time ASC, id ASC
   `).all(startDate, endDate);
 
@@ -1836,6 +1844,7 @@ function normalizeArloFeedRow(row) {
     isValidAmount: hasValidKnownAmount,
     amountSource: hasValidKnownAmount ? 'logged' : 'missing',
     vitaminD: Boolean(row.vitamin_d),
+    ironMultivitamin: Boolean(row.iron_multivitamin),
     breastSide: row.breast_side || '',
     createdAt: row.created_at,
   };
@@ -2406,12 +2415,13 @@ function recordArloEvent(payload) {
   const poopColor = normalizePoopColor(payload.poopColor, activityType);
   const shart = normalizeShart(payload.shart, activityType);
   const vitaminD = normalizeVitaminD(payload.vitaminD, activityType);
+  const ironMultivitamin = normalizeIronMultivitamin(payload.ironMultivitamin, activityType);
   const breastSide = normalizeBreastSide(payload.breastSide, activityType);
 
   db.prepare(`
-    INSERT INTO arlo_events (activity_type, event_date, event_time, amount_value, amount_unit, poop_color, shart, vitamin_d, breast_side)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(activityType, eventDate, eventTime, amountValue, amountUnit, poopColor, shart ? 1 : 0, vitaminD ? 1 : 0, breastSide);
+    INSERT INTO arlo_events (activity_type, event_date, event_time, amount_value, amount_unit, poop_color, shart, vitamin_d, iron_multivitamin, breast_side)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(activityType, eventDate, eventTime, amountValue, amountUnit, poopColor, shart ? 1 : 0, vitaminD ? 1 : 0, ironMultivitamin ? 1 : 0, breastSide);
 }
 
 function deleteArloEvent(eventId) {
@@ -2468,7 +2478,7 @@ function normalizeEventTime(value) {
 }
 
 function normalizeArloAmount(value, activityType) {
-  const requiresNoAmount = new Set(['poop-diaper', 'pee-diaper', 'both-diaper']);
+  const requiresNoAmount = new Set(['milk-pop', 'poop-diaper', 'pee-diaper', 'both-diaper']);
   const raw = String(value ?? '').trim();
 
   if (requiresNoAmount.has(activityType)) {
@@ -2513,6 +2523,15 @@ function normalizePoopColor(value, activityType) {
 function normalizeVitaminD(value, activityType) {
   const supportsVitaminD = new Set(['breastfeeding', 'stored-breast-milk', 'milk-pop', 'colostrum', 'formula']);
   if (!supportsVitaminD.has(activityType)) {
+    return false;
+  }
+
+  return Boolean(value);
+}
+
+function normalizeIronMultivitamin(value, activityType) {
+  const supportsIronMultivitamin = new Set(['breastfeeding', 'stored-breast-milk', 'milk-pop', 'colostrum', 'formula']);
+  if (!supportsIronMultivitamin.has(activityType)) {
     return false;
   }
 

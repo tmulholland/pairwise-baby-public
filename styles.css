@@ -739,6 +739,16 @@ code {
   color: #1f1a17;
 }
 
+.summary-timeline-iron-letter {
+  color: #a4472a;
+}
+
+.summary-timeline-supplement-pair {
+  width: 19px;
+  gap: 1px;
+  font-size: 0.48rem;
+}
+
 .summary-timeline-letter {
   display: inline-flex;
   align-items: center;

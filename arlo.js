@@ -10,6 +10,8 @@ const elements = {
   shart: document.querySelector('#shart'),
   vitaminDField: document.querySelector('#vitamin-d-field'),
   vitaminD: document.querySelector('#vitamin-d'),
+  ironMultivitaminField: document.querySelector('#iron-multivitamin-field'),
+  ironMultivitamin: document.querySelector('#iron-multivitamin'),
   breastSideField: document.querySelector('#breast-side-field'),
   breastSide: document.querySelector('#breast-side'),
   amountHelp: document.querySelector('#amount-help'),
@@ -152,6 +154,7 @@ async function handleSubmit(event) {
         poopColor: elements.poopColor.value,
         shart: elements.shart.checked,
         vitaminD: elements.vitaminD.checked,
+        ironMultivitamin: elements.ironMultivitamin.checked,
         breastSide: elements.breastSide.value,
         eventDate: elements.eventDate.value,
         eventTime: elements.eventTime.value,
@@ -513,7 +516,7 @@ function renderFeedingSummaryCard(summary) {
   card.className = 'summary-card';
 
   const totalCount = activityTypes.reduce((sum, activityType) => sum + getCount(summary, activityType), 0);
-  const totalAmount = getCombinedFeedAmount(summary, ['stored-breast-milk', 'milk-pop', 'colostrum', 'formula', 'gripe-water']);
+  const totalAmount = getCombinedFeedAmount(summary, ['stored-breast-milk', 'colostrum', 'formula', 'gripe-water']);
   const latest = getLatestAcrossActivities(summary, activityTypes);
   const parts = [`${totalCount} feeding${totalCount === 1 ? '' : 's'}`];
 
@@ -655,6 +658,9 @@ function buildEventTitle(entry) {
     if (entry.vitaminD) {
       parts.push('vitamin D');
     }
+    if (entry.ironMultivitamin) {
+      parts.push('iron multivitamin');
+    }
     return parts.join(' • ');
   }
 
@@ -670,6 +676,9 @@ function buildEventTitle(entry) {
   }
   if (entry.vitaminD) {
     parts.push('vitamin D');
+  }
+  if (entry.ironMultivitamin) {
+    parts.push('iron multivitamin');
   }
   return parts.join(' • ');
 }
@@ -767,6 +776,7 @@ function buildTimelineEvents(summary, configs) {
       events.push({
         eventTime: event.eventTime,
         vitaminD: Boolean(event.vitaminD),
+        ironMultivitamin: Boolean(event.ironMultivitamin),
         breastSide: event.breastSide || '',
         shart: Boolean(event.shart),
         colorClass: event.shart && config.colorClass === 'timeline-dot-poop'
@@ -788,15 +798,31 @@ function renderSummaryTimeline(events) {
     const dot = document.createElement('span');
     dot.className = `summary-timeline-dot ${event.colorClass}${event.variantClass ? ` ${event.variantClass}` : ''}`;
     dot.style.left = `${getTimelinePercent(event.eventTime)}%`;
-    if (event.vitaminD) {
+    if (event.vitaminD || event.ironMultivitamin) {
       dot.classList.add('summary-timeline-vitamin');
-      dot.textContent = 'V';
+      if (event.vitaminD) {
+        const vitaminDMarker = document.createElement('span');
+        vitaminDMarker.textContent = 'V';
+        dot.append(vitaminDMarker);
+      }
+      if (event.ironMultivitamin) {
+        const ironMarker = document.createElement('span');
+        ironMarker.className = 'summary-timeline-iron-letter';
+        ironMarker.textContent = 'I';
+        dot.append(ironMarker);
+      }
+      if (event.vitaminD && event.ironMultivitamin) {
+        dot.classList.add('summary-timeline-supplement-pair');
+      }
     } else if (event.breastSide) {
       dot.classList.add('summary-timeline-letter');
       dot.textContent = getBreastSideMarker(event.breastSide);
     }
-    dot.title = event.vitaminD
-      ? `${formatDisplayTime(event.eventTime)} • vitamin D`
+    const supplementLabels = [];
+    if (event.vitaminD) supplementLabels.push('vitamin D');
+    if (event.ironMultivitamin) supplementLabels.push('iron multivitamin');
+    dot.title = supplementLabels.length
+      ? `${formatDisplayTime(event.eventTime)} • ${supplementLabels.join(' + ')}`
       : event.breastSide
         ? `${formatDisplayTime(event.eventTime)} • ${formatBreastSideLabel(event.breastSide)}`
         : formatDisplayTime(event.eventTime);
@@ -853,25 +879,31 @@ function formatElapsedSince(eventDate, eventTime) {
 function syncAmountState() {
   const diaperActivities = new Set(['poop-diaper', 'pee-diaper', 'both-diaper']);
   const isDiaper = diaperActivities.has(elements.activityType.value);
+  const isMilkPop = elements.activityType.value === 'milk-pop';
+  const disablesAmount = isDiaper || isMilkPop;
   const supportsPoopColor = new Set(['poop-diaper', 'both-diaper']).has(elements.activityType.value);
   const supportsShart = supportsPoopColor;
   const supportsVitaminD = new Set(['breastfeeding', 'stored-breast-milk', 'milk-pop', 'colostrum', 'formula']).has(elements.activityType.value);
   const supportsBreastSide = elements.activityType.value === 'breastfeeding';
-  elements.amountValue.disabled = isDiaper;
-  elements.amountUnit.disabled = isDiaper;
+  elements.amountValue.disabled = disablesAmount;
+  elements.amountUnit.disabled = disablesAmount;
   elements.poopColorField.classList.toggle('hidden', !supportsPoopColor);
   elements.poopColor.disabled = !supportsPoopColor;
   elements.shartField.classList.toggle('hidden', !supportsShart);
   elements.shart.disabled = !supportsShart;
   elements.vitaminDField.classList.toggle('hidden', !supportsVitaminD);
   elements.vitaminD.disabled = !supportsVitaminD;
+  elements.ironMultivitaminField.classList.toggle('hidden', !supportsVitaminD);
+  elements.ironMultivitamin.disabled = !supportsVitaminD;
   elements.breastSideField.classList.toggle('hidden', !supportsBreastSide);
   elements.breastSide.disabled = !supportsBreastSide;
   elements.amountHelp.textContent = isDiaper
     ? 'Amount is only for feeding events.'
-    : 'Use amount for formula, colostrum, stored breast milk, milk pop, gripe water, or Tylenol. For direct breastfeeding, leave it blank if you do not know.';
+    : isMilkPop
+      ? 'Milk pops do not need an amount and are excluded from volume totals and the fuel gauge.'
+      : 'Use amount for formula, colostrum, stored breast milk, gripe water, or Tylenol. For direct breastfeeding, leave it blank if you do not know.';
 
-  if (isDiaper) {
+  if (disablesAmount) {
     elements.amountValue.value = '';
   }
 
@@ -881,6 +913,7 @@ function syncAmountState() {
 
   if (!supportsVitaminD) {
     elements.vitaminD.checked = false;
+    elements.ironMultivitamin.checked = false;
   }
 
   if (!supportsShart) {
@@ -901,6 +934,7 @@ function resetAfterSubmit() {
   elements.poopColor.value = 'Mustard Yellow';
   elements.shart.checked = false;
   elements.vitaminD.checked = false;
+  elements.ironMultivitamin.checked = false;
   elements.breastSide.value = '';
   syncAmountState();
 }
@@ -1137,9 +1171,12 @@ function getChartValue(summary) {
 
 function getFeedVolumeMl(summary, activityType, includeInference) {
   const statsMap = summary?.feedStats || {};
+  if (activityType === 'milk-pop') {
+    return 0;
+  }
   const statsEntries = activityType
     ? [[activityType, statsMap[activityType] || null]]
-    : Object.entries(statsMap);
+    : Object.entries(statsMap).filter(([key]) => key !== 'milk-pop');
 
   let totalMl = 0;
   let missingVolumeCount = 0;
