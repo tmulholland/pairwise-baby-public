@@ -741,12 +741,21 @@ code {
 
 .summary-timeline-iron-letter {
   color: #a4472a;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1;
+  transform: scaleX(1.08);
 }
 
 .summary-timeline-supplement-pair {
   width: 19px;
   gap: 1px;
   font-size: 0.48rem;
+}
+
+.summary-timeline-supplement-pair .summary-timeline-iron-letter {
+  font-size: 0.54rem;
 }
 
 .summary-timeline-letter {
