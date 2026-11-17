@@ -740,12 +740,16 @@ code {
 }
 
 .summary-timeline-iron-letter {
-  color: #a4472a;
-  font-family: "Fraunces", Georgia, serif;
-  font-size: 0.66rem;
-  font-weight: 700;
-  line-height: 1;
-  transform: scaleX(1.08);
+  display: inline-block;
+  width: 8px;
+  height: 12px;
+  overflow: hidden;
+  color: transparent;
+  font-size: 0;
+  background:
+    linear-gradient(#a4472a, #a4472a) center / 3px 100% no-repeat,
+    linear-gradient(#a4472a, #a4472a) top center / 100% 2px no-repeat,
+    linear-gradient(#a4472a, #a4472a) bottom center / 100% 2px no-repeat;
 }
 
 .summary-timeline-supplement-pair {
@@ -755,7 +759,8 @@ code {
 }
 
 .summary-timeline-supplement-pair .summary-timeline-iron-letter {
-  font-size: 0.54rem;
+  width: 7px;
+  height: 10px;
 }
 
 .summary-timeline-letter {
