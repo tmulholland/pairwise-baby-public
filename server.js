@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const Database = require('better-sqlite3');
+const { registerHomestead } = require('./homestead-routes');
 const { ensureNamePopularityColumns, initializeSsaPopularity, updateSsaPopularityForNames } = require('./ssa-popularity');
 const { ensureNameBtnColumns, initializeBtnMetadata, updateBtnMetadataForNames } = require('./btn-metadata');
 
@@ -37,31 +38,11 @@ initializeShowtimeDatabase();
 initializeFinaleDatabase();
 initializeArloDatabase();
 initializeFreezerDatabase();
-db.exec(`
-  CREATE TABLE IF NOT EXISTS homestead_landmarks (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
-    icon TEXT NOT NULL,
-    x REAL NOT NULL CHECK (x BETWEEN 0 AND 1),
-    y REAL NOT NULL CHECK (y BETWEEN 0 AND 1),
-    UNIQUE (name, icon, x, y)
-  )
-`);
-const listHomesteadLandmarks = db.prepare('SELECT id, name, icon, x, y FROM homestead_landmarks ORDER BY id');
-const insertHomesteadLandmark = db.prepare(`
-  INSERT INTO homestead_landmarks (name, icon, x, y)
-  VALUES (@name, @icon, @x, @y)
-  ON CONFLICT (name, icon, x, y) DO NOTHING
-`);
-const saveHomesteadLandmarks = db.transaction((landmarks) => {
-  for (const landmark of landmarks) insertHomesteadLandmark.run(landmark);
-  return listHomesteadLandmarks.all();
-});
-const homesteadIcons = new Set(['🪨', '🌽', '🛖', '🏠', '⛰️', '🌲']);
 queueSummaryRefreshForAllNames();
 void initializeSsaPopularity(db);
 void initializeBtnMetadata(db);
 
+registerHomestead(app, db);
 app.use(express.json());
 app.use('/static', express.static(__dirname, { index: false }));
 
@@ -107,28 +88,6 @@ app.get('/freezer', (_req, res) => {
 
 app.get('/grandmas-freezer', (_req, res) => {
   res.sendFile(path.join(__dirname, 'moms-freezer.html'));
-});
-
-app.get('/homestead', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'homestead.html'));
-});
-
-app.get('/api/homestead/landmarks', (_req, res) => {
-  res.set('Cache-Control', 'no-store').json(listHomesteadLandmarks.all());
-});
-
-app.post('/api/homestead/landmarks', (req, res) => {
-  const landmarks = req.body;
-  if (!Array.isArray(landmarks) || !landmarks.length || !landmarks.every((landmark) =>
-    typeof landmark?.name === 'string' &&
-    landmark.name.trim().length > 0 && landmark.name.trim().length <= 80 &&
-    homesteadIcons.has(landmark.icon) &&
-    [landmark.x, landmark.y].every((value) => Number.isFinite(value) && value >= 0 && value <= 1)
-  )) {
-    return res.status(400).json({ error: 'Each landmark needs a valid name, icon, and map position.' });
-  }
-  const normalized = landmarks.map(({ name, icon, x, y }) => ({ name: name.trim(), icon, x, y }));
-  res.json(saveHomesteadLandmarks(normalized));
 });
 
 app.get('/moms-freezer', (_req, res) => {

@@ -24,33 +24,60 @@
           <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
           <button id="zoom-reset" type="button" disabled>Fit</button>
         </div>
-        <button id="add" type="button" aria-pressed="false" disabled>Add landmark</button>
+        <button id="add" type="button" disabled>Add landmark</button>
+        <div>
+          <label for="draw">Draw</label>
+          <select id="draw" disabled>
+            <option value="">Choose a shape</option>
+            <option value="trail">Trail</option>
+            <option value="creek">Creek</option>
+            <option value="region">Region</option>
+          </select>
+        </div>
       </div>
     </header>
     <p id="status" role="status"></p>
-    <form id="landmark-form" hidden>
+    <section id="drawing-controls" aria-label="Drawing controls" hidden>
+      <button id="undo" type="button">Undo point</button>
+      <button id="finish" type="button">Finish drawing</button>
+      <button id="cancel-drawing" type="button">Cancel</button>
+    </section>
+    <form id="feature-form" hidden>
       <label>Name <input name="name" required maxlength="80"></label>
-      <label>Icon
-        <select name="icon">
-          <option value="🪨">🪨 Rock</option>
-          <option value="🌽">🌽 Corn</option>
-          <option value="🛖">🛖 Hut</option>
-          <option value="🏠">🏠 House</option>
-          <option value="⛰️">⛰️ Peak</option>
-          <option value="🌲">🌲 Pine tree</option>
-        </select>
-      </label>
-      <button type="submit">Save landmark</button>
-      <button id="cancel" type="button">Cancel</button>
+      <button type="submit">Save shape</button>
+      <button id="resume-drawing" type="button">Keep drawing</button>
     </form>
+    <dialog id="landmark-dialog" aria-labelledby="landmark-title">
+      <h2 id="landmark-title"></h2>
+      <p id="landmark-status" role="status"></p>
+      <section id="landmark-details">
+        <div id="gallery" class="gallery"></div>
+        <button id="edit" type="button">Edit landmark</button>
+      </section>
+      <form id="landmark-form" hidden>
+        <label>Name <input name="name" required maxlength="80"></label>
+        <label>Search emoji <input id="emoji-search" type="search" placeholder="Rock, tree, flag…"></label>
+        <div>
+          <label for="landmark-icon">Icon</label>
+          <select id="landmark-icon" name="icon" required></select>
+        </div>
+        <div id="existing-photos" class="gallery"></div>
+        <label>Photos <input name="photos" type="file" accept="image/*" multiple></label>
+        <small>Up to six photos per landmark.</small>
+        <button type="submit">Save landmark</button>
+      </form>
+      <button id="close-dialog" type="button">Close</button>
+    </dialog>
     <div class="map-viewport" tabindex="0" aria-label="Map viewport">
       <div class="map">
-        <img id="background" src="/static/homestead-assets/aerial.jpg" alt="Aerial view near Dewittville" width="2700" height="1800">
-        <button id="place" type="button" aria-label="Place a landmark. Use arrow keys to position the marker." hidden></button>
+        <img id="background" src="/static/homestead-assets/aerial.jpg" alt="Aerial view near Dewittville" width="2700" height="1800" draggable="false">
+        <svg id="features" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-label="Trails, creeks, and regions"></svg>
+        <button id="place" type="button" aria-label="Place a point. Use arrow keys to position the cursor." hidden></button>
         <span id="draft" class="pin" aria-hidden="true" hidden>＋</span>
         <div id="markers"></div>
       </div>
     </div>
+    <ul id="feature-list" aria-label="Saved trails, creeks, and regions" hidden></ul>
     <footer>2024 NYS aerial imagery · USGS elevation and 20-foot contours</footer>
   </main>
 </body>
