@@ -11,6 +11,7 @@ const add = document.querySelector('#add');
 const place = document.querySelector('#place');
 const draft = document.querySelector('#draft');
 const markers = document.querySelector('#markers');
+const showLandmarks = document.querySelector('#show-landmarks');
 const status = document.querySelector('#status');
 const featureLayer = document.querySelector('#features');
 const featureList = document.querySelector('#feature-list');
@@ -173,6 +174,7 @@ function putAt(element, { x, y }) {
 }
 
 function renderLandmarks() {
+  markers.hidden = !showLandmarks.checked;
   markers.replaceChildren();
   for (const landmark of landmarks) {
     const pin = document.createElement('button');
@@ -186,6 +188,10 @@ function renderLandmarks() {
     markers.append(pin);
   }
 }
+
+showLandmarks.addEventListener('change', () => {
+  markers.hidden = !showLandmarks.checked;
+});
 
 function photoImage(photo, name, index) {
   const image = document.createElement('img');
