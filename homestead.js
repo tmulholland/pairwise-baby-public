@@ -511,5 +511,8 @@ featureForm.addEventListener('submit', async (event) => {
   }
 });
 
+zoomTo(1);
+viewport.scrollTop = 0;
+
 void loadLandmarks();
 void loadFeatures();
