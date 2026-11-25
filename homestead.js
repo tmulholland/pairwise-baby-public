@@ -15,7 +15,7 @@ const status = document.querySelector('#status');
 const featureLayer = document.querySelector('#features');
 const featureList = document.querySelector('#feature-list');
 const draw = document.querySelector('#draw');
-const drawingControls = document.querySelector('#drawing-controls');
+const featureName = document.querySelector('#feature-name');
 const undo = document.querySelector('#undo');
 const finish = document.querySelector('#finish');
 const featureForm = document.querySelector('#feature-form');
@@ -30,6 +30,7 @@ const emojiSearch = document.querySelector('#emoji-search');
 const iconSelect = form.elements.icon;
 const edit = document.querySelector('#edit');
 const close = document.querySelector('#close-dialog');
+const deleteButton = document.querySelector('#delete-landmark');
 const clamp = (value) => Math.max(0, Math.min(1, value));
 const zoomLevels = [1, 1.5, 2, 3, 4];
 const featureLabels = { trail: 'Trail', creek: 'Creek', region: 'Region' };
@@ -46,6 +47,7 @@ let selectedLandmark;
 let detailRequest = 0;
 let emojiCatalog;
 let savingLandmark = false;
+let savingFeature = false;
 
 function visibleCenter() {
   return {
@@ -249,6 +251,7 @@ async function openEditor(landmark) {
   details.hidden = true;
   form.reset();
   form.hidden = false;
+  deleteButton.hidden = !landmark;
   dialogStatus.textContent = '';
   form.elements.name.value = landmark?.name ?? '';
   existingPhotos.replaceChildren(...(landmark?.photos ?? []).map((photo, index) => {
@@ -277,6 +280,29 @@ emojiSearch.addEventListener('input', () => renderEmojiOptions());
 edit.addEventListener('click', () => void openEditor(selectedLandmark));
 close.addEventListener('click', () => dialog.close());
 dialog.addEventListener('cancel', (event) => { if (savingLandmark) event.preventDefault(); });
+
+deleteButton.addEventListener('click', async () => {
+  const landmark = selectedLandmark;
+  if (!landmark || savingLandmark ||
+      !window.confirm(`Delete “${landmark.name}” and its photos from the shared map?`)) return;
+  const controls = [close, ...form.elements];
+  savingLandmark = true;
+  for (const control of controls) control.disabled = true;
+  dialogStatus.textContent = 'Deleting landmark…';
+  const { id, name, icon, x, y } = landmark;
+  try {
+    landmarks = await requestJson(`${landmarkUrl}/${id}`, 'DELETE', { name, icon, x, y });
+    dialog.close();
+    renderLandmarks();
+    add.focus({ preventScroll: true });
+    status.textContent = `Deleted ${name}.`;
+  } catch (error) {
+    dialogStatus.textContent = error.message;
+  } finally {
+    savingLandmark = false;
+    for (const control of controls) control.disabled = false;
+  }
+});
 
 async function preparePhoto(file) {
   if (file.size > 25 * 1024 * 1024) throw new Error('Choose photos that are 25 MB or smaller.');
@@ -386,13 +412,12 @@ function startPlacement(kind) {
   position = visibleCenter();
   putAt(draft, position);
   draft.hidden = place.hidden = false;
-  drawingControls.hidden = false;
-  undo.hidden = finish.hidden = mode === 'landmark';
-  featureForm.hidden = true;
   featureForm.reset();
+  featureForm.hidden = false;
+  featureName.hidden = featureForm.elements.name.disabled = undo.hidden = finish.hidden = mode === 'landmark';
   status.textContent = mode === 'landmark'
     ? 'Click or tap to place a landmark. Use the arrow keys and Enter to place it by keyboard.'
-    : 'Click or tap to add points. Use the arrow keys and Enter to add points by keyboard.';
+    : 'Add points and enter a name, then select Finish drawing to save. Use the arrow keys and Enter to add points by keyboard.';
   renderFeatures();
   place.focus({ preventScroll: true });
 }
@@ -400,13 +425,14 @@ function startPlacement(kind) {
 function stopPlacement() {
   mode = '';
   points = [];
-  draft.hidden = place.hidden = drawingControls.hidden = featureForm.hidden = true;
+  draft.hidden = place.hidden = featureForm.hidden = true;
   draw.value = '';
   status.textContent = '';
   renderFeatures();
 }
 
 add.addEventListener('click', () => {
+  if (savingFeature) return;
   draw.value = '';
   startPlacement('landmark');
 });
@@ -454,43 +480,34 @@ place.addEventListener('click', (event) => {
 });
 
 undo.addEventListener('click', () => { points.pop(); renderFeatures(); });
-finish.addEventListener('click', () => {
-  drawingControls.hidden = place.hidden = draft.hidden = true;
-  featureForm.hidden = false;
-  status.textContent = '';
-  featureForm.elements.name.focus();
-});
 document.querySelector('#cancel-drawing').addEventListener('click', () => {
   const control = mode === 'landmark' ? add : draw;
   stopPlacement();
   control.focus();
 });
-document.querySelector('#resume-drawing').addEventListener('click', () => {
-  featureForm.hidden = true;
-  drawingControls.hidden = place.hidden = draft.hidden = false;
-  status.textContent = '';
-  place.focus({ preventScroll: true });
-});
 featureForm.addEventListener('submit', async (event) => {
   event.preventDefault();
+  if (savingFeature || finish.disabled || finish.hidden) return;
   const name = featureForm.elements.name.value.trim();
   if (!name) {
     status.textContent = 'Enter a name for the shape.';
+    featureForm.elements.name.focus();
     return;
   }
-  const controls = [draw, add, ...featureForm.elements];
+  const controls = [draw, add, place, ...featureForm.elements].filter((control) => !control.disabled);
+  savingFeature = true;
   for (const control of controls) control.disabled = true;
-  let saved = false;
+  status.textContent = `Saving ${name}…`;
   try {
     features = await requestJson(featureUrl, 'POST', { kind: mode, name, points });
     stopPlacement();
     status.textContent = `Saved ${name}.`;
-    saved = true;
   } catch (error) {
     status.textContent = error.message;
   } finally {
+    savingFeature = false;
     for (const control of controls) control.disabled = false;
-    if (saved) draw.focus();
+    if (!mode) draw.focus();
   }
 });
 

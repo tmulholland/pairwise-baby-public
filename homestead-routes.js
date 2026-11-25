@@ -52,6 +52,13 @@ function registerHomestead(app, db) {
     RETURNING id
   `);
   const updateLandmark = db.prepare('UPDATE homestead_landmarks SET name = ?, icon = ? WHERE id = ?');
+  const removeLandmark = db.prepare('DELETE FROM homestead_landmarks WHERE id = @id AND name = @name AND icon = @icon AND x = @x AND y = @y');
+  const removePhotos = db.prepare('DELETE FROM homestead_landmark_photos WHERE landmark_id = ?');
+  const deleteLandmark = db.transaction((landmark) => {
+    if (!removeLandmark.run(landmark).changes) return !getLandmark.get(landmark.id);
+    removePhotos.run(landmark.id);
+    return true;
+  });
   const savePhotos = db.prepare(`
     INSERT INTO homestead_landmark_photos (landmark_id, photos) VALUES (?, ?)
     ON CONFLICT (landmark_id) DO UPDATE SET photos = excluded.photos
@@ -127,6 +134,17 @@ function registerHomestead(app, db) {
       if (error.code !== 'SQLITE_CONSTRAINT_UNIQUE') throw error;
       res.status(409).json({ error: 'A landmark with that name and emoji already exists at this spot.' });
     }
+  });
+  api.delete('/landmarks/:id', (req, res) => {
+    const landmark = req.body;
+    if (!validName(landmark?.name) || !emoji.has(landmark.icon) || !coordinates(landmark)) {
+      return res.status(400).json({ error: 'Choose a landmark to delete.' });
+    }
+    const { name, icon, x, y } = landmark;
+    if (!deleteLandmark({ id: req.params.id, name, icon, x, y })) {
+      return res.status(409).json({ error: 'This landmark changed. Reopen it to get the latest version.' });
+    }
+    res.json(listLandmarks.all());
   });
   api.get('/features', (_req, res) => res.json(readFeatures()));
   api.post('/features', (req, res) => {

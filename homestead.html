@@ -37,15 +37,11 @@
       </div>
     </header>
     <p id="status" role="status"></p>
-    <section id="drawing-controls" aria-label="Drawing controls" hidden>
+    <form id="feature-form" aria-label="Drawing controls" hidden>
+      <label id="feature-name">Name <input name="name" required maxlength="80"></label>
       <button id="undo" type="button">Undo point</button>
-      <button id="finish" type="button">Finish drawing</button>
+      <button id="finish" type="submit">Finish drawing</button>
       <button id="cancel-drawing" type="button">Cancel</button>
-    </section>
-    <form id="feature-form" hidden>
-      <label>Name <input name="name" required maxlength="80"></label>
-      <button type="submit">Save shape</button>
-      <button id="resume-drawing" type="button">Keep drawing</button>
     </form>
     <dialog id="landmark-dialog" aria-labelledby="landmark-title">
       <h2 id="landmark-title"></h2>
@@ -65,6 +61,7 @@
         <label>Photos <input name="photos" type="file" accept="image/*" multiple></label>
         <small>Up to six photos per landmark.</small>
         <button type="submit">Save landmark</button>
+        <button id="delete-landmark" type="button" hidden>Delete landmark</button>
       </form>
       <button id="close-dialog" type="button">Close</button>
     </dialog>

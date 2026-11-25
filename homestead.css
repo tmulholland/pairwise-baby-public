@@ -33,7 +33,7 @@ footer { margin-top: 8px; font-size: .85rem; }
 .feature.region { fill: #b5de6855; stroke: #52832e; }
 .feature.draft { opacity: .8; }
 .feature-vertex { fill: #fffdf2; stroke: #284e39; stroke-width: 2; vector-effect: non-scaling-stroke; }
-#drawing-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+#feature-form { gap: 8px; }
 #feature-list { padding-left: 1.4em; }
 dialog { width: min(92vw, 640px); max-height: 90dvh; border: 1px solid #b9c2b2; border-radius: 12px; color: inherit; background: #fffdf2; }
 dialog::backdrop { background: #15221899; }
@@ -46,3 +46,4 @@ dialog h2 { margin: 0 0 12px; }
 .gallery img { display: block; width: 100%; max-height: 65vh; object-fit: contain; }
 #existing-photos { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 #existing-photos img { max-height: 120px; }
+#delete-landmark { border-color: #9c2c22; background: #9c2c22; }
