@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Homestead</title>
+  <link rel="stylesheet" href="/static/homestead.css">
+  <script src="/static/homestead.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <a href="/">Home</a>
+        <h1>Homestead</h1>
+      </div>
+      <div class="controls">
+        <fieldset aria-label="Map view">
+          <label><input type="radio" name="layer" value="aerial.jpg" checked> Satellite</label>
+          <label><input type="radio" name="layer" value="topography.png"> Topography</label>
+        </fieldset>
+        <div class="zoom-controls" role="group" aria-label="Map zoom">
+          <button id="zoom-out" type="button" aria-label="Zoom out" disabled>−</button>
+          <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+          <button id="zoom-reset" type="button" disabled>Fit</button>
+        </div>
+        <button id="add" type="button" aria-pressed="false" disabled>Add landmark</button>
+      </div>
+    </header>
+    <p id="status" role="status"></p>
+    <form id="landmark-form" hidden>
+      <label>Name <input name="name" required maxlength="80"></label>
+      <label>Icon
+        <select name="icon">
+          <option value="🪨">🪨 Rock</option>
+          <option value="🌽">🌽 Corn</option>
+          <option value="🛖">🛖 Hut</option>
+          <option value="🏠">🏠 House</option>
+          <option value="⛰️">⛰️ Peak</option>
+          <option value="🌲">🌲 Pine tree</option>
+        </select>
+      </label>
+      <button type="submit">Save landmark</button>
+      <button id="cancel" type="button">Cancel</button>
+    </form>
+    <div class="map-viewport" tabindex="0" aria-label="Map viewport">
+      <div class="map">
+        <img id="background" src="/static/homestead-assets/aerial.jpg" alt="Aerial view near Dewittville" width="2700" height="1800">
+        <button id="place" type="button" aria-label="Place a landmark. Use arrow keys to position the marker." hidden></button>
+        <span id="draft" class="pin" aria-hidden="true" hidden>＋</span>
+        <div id="markers"></div>
+      </div>
+    </div>
+    <footer>2024 NYS aerial imagery · USGS elevation and 20-foot contours</footer>
+  </main>
+</body>
+</html>
