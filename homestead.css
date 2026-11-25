@@ -15,7 +15,7 @@ form { margin-bottom: 12px; }
 #status:empty { display: none; }
 .zoom-controls { display: flex; gap: 4px; }
 button:disabled { opacity: .55; cursor: default; }
-.map-viewport { width: min(100%, 112.5vh); margin: 12px auto 0; max-height: 75vh; overflow: auto; }
+.map-viewport { width: min(100%, 112.5vh); margin: 12px auto 0; max-height: 75vh; overflow: auto; touch-action: none; }
 .map { position: relative; width: var(--map-width, 100%); }
 #background { display: block; width: 100%; height: auto; background: #d9dfd2; }
 #place { position: absolute; inset: 0; border: 0; background: transparent; cursor: crosshair; }
@@ -24,7 +24,7 @@ button:disabled { opacity: .55; cursor: default; }
 .map:has(#place:not([hidden])) #markers { pointer-events: none; }
 footer { margin-top: 8px; font-size: .85rem; }
 
-.map-viewport.zoomed { cursor: grab; touch-action: none; overscroll-behavior: contain; }
+.map-viewport.zoomed { cursor: grab; overscroll-behavior: contain; }
 .map-viewport.dragging, .map-viewport.dragging #place { cursor: grabbing; user-select: none; }
 #features { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .feature { fill: none; stroke-width: 4; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
@@ -35,6 +35,8 @@ footer { margin-top: 8px; font-size: .85rem; }
 .feature-vertex { fill: #fffdf2; stroke: #284e39; stroke-width: 2; vector-effect: non-scaling-stroke; }
 #feature-form { gap: 8px; }
 #feature-list { padding-left: 1.4em; }
+#feature-list li + li { margin-top: 6px; }
+#feature-list .delete-feature { margin-inline-start: 10px; padding: 3px 8px; border-color: #9c2c22; background: transparent; color: #9c2c22; }
 dialog { width: min(92vw, 640px); max-height: 90dvh; border: 1px solid #b9c2b2; border-radius: 12px; color: inherit; background: #fffdf2; }
 dialog::backdrop { background: #15221899; }
 dialog h2 { margin: 0 0 12px; }

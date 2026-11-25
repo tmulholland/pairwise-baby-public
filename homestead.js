@@ -34,10 +34,14 @@ const close = document.querySelector('#close-dialog');
 const deleteButton = document.querySelector('#delete-landmark');
 const clamp = (value) => Math.max(0, Math.min(1, value));
 const zoomLevels = [1, 1.5, 2, 3, 4];
+const minZoom = zoomLevels[0];
+const maxZoom = zoomLevels[zoomLevels.length - 1];
 const featureLabels = { trail: 'Trail', creek: 'Creek', region: 'Region' };
 const svgNamespace = 'http://www.w3.org/2000/svg';
-let zoomIndex = 0;
+let zoom = minZoom;
 let drag;
+const touchPointers = new Map();
+let pinch;
 let suppressClick = false;
 let position;
 let mode = '';
@@ -48,40 +52,95 @@ let selectedLandmark;
 let detailRequest = 0;
 let emojiCatalog;
 let savingLandmark = false;
-let savingFeature = false;
+let updatingFeatures = false;
+
+function mapPosition({ x, y }) {
+  return {
+    x: clamp((viewport.scrollLeft + x) / map.offsetWidth),
+    y: clamp((viewport.scrollTop + y) / map.offsetHeight)
+  };
+}
+
+function viewportCenter() {
+  return { x: viewport.clientWidth / 2, y: viewport.clientHeight / 2 };
+}
 
 function visibleCenter() {
-  return {
-    x: clamp((viewport.scrollLeft + viewport.clientWidth / 2) / map.offsetWidth),
-    y: clamp((viewport.scrollTop + viewport.clientHeight / 2) / map.offsetHeight)
+  return mapPosition(viewportCenter());
+}
+
+function zoomAt(scale, point, anchor) {
+  zoom = Math.max(minZoom, Math.min(maxZoom, scale));
+  viewport.classList.toggle('zoomed', zoom > minZoom);
+  map.style.setProperty('--map-width', `${zoom * 100}%`);
+  viewport.scrollLeft = point.x * map.offsetWidth - anchor.x;
+  viewport.scrollTop = point.y * map.offsetHeight - anchor.y;
+  zoomOut.disabled = zoomReset.disabled = zoom === minZoom;
+  zoomIn.disabled = zoom === maxZoom;
+}
+
+function zoomTo(scale) {
+  zoomAt(scale, visibleCenter(), viewportCenter());
+}
+
+zoomOut.addEventListener('click', () => {
+  const smaller = zoomLevels.filter((level) => level < zoom);
+  zoomTo(smaller[smaller.length - 1] ?? minZoom);
+});
+zoomIn.addEventListener('click', () => zoomTo(zoomLevels.find((level) => level > zoom) ?? maxZoom));
+zoomReset.addEventListener('click', () => zoomTo(minZoom));
+
+function startDrag(id, { x, y }, moved = false) {
+  drag = {
+    id, x, y, left: viewport.scrollLeft, top: viewport.scrollTop, moved
   };
 }
 
-function zoomTo(index) {
-  const center = visibleCenter();
-  zoomIndex = index;
-  viewport.classList.toggle('zoomed', index > 0);
-  map.style.setProperty('--map-width', `${zoomLevels[index] * 100}%`);
-  viewport.scrollLeft = center.x * map.offsetWidth - viewport.clientWidth / 2;
-  viewport.scrollTop = center.y * map.offsetHeight - viewport.clientHeight / 2;
-  zoomOut.disabled = zoomReset.disabled = index === 0;
-  zoomIn.disabled = index === zoomLevels.length - 1;
+function measurePinch() {
+  const [first, second] = touchPointers.values();
+  const bounds = viewport.getBoundingClientRect();
+  return {
+    distance: Math.max(1, Math.hypot(first.x - second.x, first.y - second.y)),
+    center: {
+      x: (first.x + second.x) / 2 - bounds.left,
+      y: (first.y + second.y) / 2 - bounds.top
+    }
+  };
 }
 
-zoomOut.addEventListener('click', () => zoomTo(zoomIndex - 1));
-zoomIn.addEventListener('click', () => zoomTo(zoomIndex + 1));
-zoomReset.addEventListener('click', () => zoomTo(0));
+function startPinch() {
+  const { distance, center } = measurePinch();
+  pinch = { distance, zoom, point: mapPosition(center) };
+  drag = undefined;
+  suppressClick = true;
+  viewport.classList.remove('dragging');
+  for (const id of touchPointers.keys()) viewport.setPointerCapture(id);
+}
 
 viewport.addEventListener('pointerdown', (event) => {
-  if (!event.isPrimary || event.button !== 0) return;
+  const { pointerId: id, clientX: x, clientY: y } = event;
+  if (event.button !== 0) return;
+  if (event.pointerType === 'touch') {
+    touchPointers.set(id, { x, y });
+    if (touchPointers.size >= 2) {
+      startPinch();
+      return;
+    }
+  } else if (!event.isPrimary || touchPointers.size) {
+    return;
+  }
   suppressClick = false;
-  if (!zoomIndex) return;
-  drag = {
-    id: event.pointerId, x: event.clientX, y: event.clientY,
-    left: viewport.scrollLeft, top: viewport.scrollTop, moved: false
-  };
+  if (zoom > minZoom) startDrag(id, { x, y });
 });
 viewport.addEventListener('pointermove', (event) => {
+  if (touchPointers.has(event.pointerId)) {
+    touchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pinch) {
+      const { distance, center } = measurePinch();
+      zoomAt(pinch.zoom * distance / pinch.distance, pinch.point, center);
+      return;
+    }
+  }
   if (event.pointerId !== drag?.id) return;
   const dx = event.clientX - drag.x;
   const dy = event.clientY - drag.y;
@@ -100,13 +159,32 @@ function endDrag(event) {
   drag = undefined;
   viewport.classList.remove('dragging');
 }
-viewport.addEventListener('pointerup', endDrag);
-viewport.addEventListener('pointercancel', endDrag);
-viewport.addEventListener('lostpointercapture', endDrag);
-viewport.addEventListener('pointerleave', (event) => { if (!drag?.moved) endDrag(event); });
+function endPointer(event) {
+  if (touchPointers.delete(event.pointerId) && pinch) {
+    if (touchPointers.size >= 2) {
+      startPinch();
+    } else {
+      pinch = undefined;
+      if (touchPointers.size && zoom > minZoom) {
+        const [[id, point]] = touchPointers;
+        startDrag(id, point, true);
+        viewport.classList.add('dragging');
+      }
+    }
+    return;
+  }
+  endDrag(event);
+}
+viewport.addEventListener('pointerup', endPointer);
+viewport.addEventListener('pointercancel', endPointer);
+viewport.addEventListener('lostpointercapture', (event) => {
+  if (event.target === viewport) endPointer(event);
+});
+viewport.addEventListener('pointerleave', (event) => {
+  if (event.pointerType !== 'touch' && !drag?.moved) endDrag(event);
+});
 viewport.addEventListener('click', (event) => {
-  if (suppressClick && event.detail > 0) {
-    suppressClick = false;
+  if (suppressClick && (event.detail > 0 || event.pointerType === 'touch')) {
     event.preventDefault();
     event.stopPropagation();
   }
@@ -393,6 +471,24 @@ function shape({ kind, points: vertices }, isDraft = false) {
   });
 }
 
+async function deleteSavedFeature(feature, button) {
+  const { id, kind, name, points } = feature;
+  if (updatingFeatures || !window.confirm(`Delete the ${kind} “${name}” from the shared map?`)) return;
+  updatingFeatures = true;
+  button.disabled = true;
+  try {
+    features = await requestJson(`${featureUrl}/${id}`, 'DELETE', { kind, name, points });
+    renderFeatures();
+    draw.focus({ preventScroll: true });
+    status.textContent = `Deleted ${name}.`;
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    updatingFeatures = false;
+    button.disabled = false;
+  }
+}
+
 function renderFeatures() {
   const layers = features.map((feature) => shape(feature));
   if (points.length) {
@@ -403,9 +499,18 @@ function renderFeatures() {
   }
   featureLayer.replaceChildren(...layers);
   featureList.hidden = !features.length;
-  featureList.replaceChildren(...features.map(({ name, kind }) => {
+  featureList.replaceChildren(...features.map((feature) => {
+    const { name, kind } = feature;
     const entry = document.createElement('li');
-    entry.textContent = `${featureLabels[kind]} · ${name}`;
+    const label = document.createElement('span');
+    label.textContent = `${featureLabels[kind]} · ${name}`;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'delete-feature';
+    button.textContent = 'Delete';
+    button.setAttribute('aria-label', `Delete ${kind} ${name}`);
+    button.addEventListener('click', () => void deleteSavedFeature(feature, button));
+    entry.append(label, button);
     return entry;
   }));
   undo.disabled = !points.length;
@@ -438,7 +543,7 @@ function stopPlacement() {
 }
 
 add.addEventListener('click', () => {
-  if (savingFeature) return;
+  if (updatingFeatures) return;
   draw.value = '';
   startPlacement('landmark');
 });
@@ -493,7 +598,7 @@ document.querySelector('#cancel-drawing').addEventListener('click', () => {
 });
 featureForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (savingFeature || finish.disabled || finish.hidden) return;
+  if (updatingFeatures || finish.disabled || finish.hidden) return;
   const name = featureForm.elements.name.value.trim();
   if (!name) {
     status.textContent = 'Enter a name for the shape.';
@@ -501,7 +606,7 @@ featureForm.addEventListener('submit', async (event) => {
     return;
   }
   const controls = [draw, add, place, ...featureForm.elements].filter((control) => !control.disabled);
-  savingFeature = true;
+  updatingFeatures = true;
   for (const control of controls) control.disabled = true;
   status.textContent = `Saving ${name}…`;
   try {
@@ -511,13 +616,13 @@ featureForm.addEventListener('submit', async (event) => {
   } catch (error) {
     status.textContent = error.message;
   } finally {
-    savingFeature = false;
+    updatingFeatures = false;
     for (const control of controls) control.disabled = false;
     if (!mode) draw.focus();
   }
 });
 
-zoomTo(1);
+zoomTo(zoomLevels[1]);
 viewport.scrollLeft /= 2;
 viewport.scrollTop = 0;
 

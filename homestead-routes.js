@@ -9,6 +9,14 @@ const coordinates = (point) => [point?.x, point?.y].every((value) =>
 );
 const validName = (name) => typeof name === 'string' && name.trim().length > 0 && name.trim().length <= 80;
 
+function normalizeFeature({ kind, name, points } = {}) {
+  const minimum = kind === 'region' ? 3 : 2;
+  if (!featureKinds.has(kind) || !validName(name) || !Array.isArray(points) ||
+      points.length < minimum || points.length > 1000 || !points.every(coordinates) ||
+      new Set(points.map(({ x, y }) => `${x},${y}`)).size < minimum) return null;
+  return { kind, name: name.trim(), points: JSON.stringify(points.map(({ x, y }) => ({ x, y }))) };
+}
+
 function validPhotos(photos) {
   return Array.isArray(photos) && photos.length <= 6 && photos.every((photo) =>
     typeof photo === 'string' && photo.length <= 700_000 &&
@@ -68,6 +76,11 @@ function registerHomestead(app, db) {
     ON CONFLICT (kind, name, points) DO NOTHING
   `);
   const listFeatures = db.prepare('SELECT id, kind, name, points FROM homestead_features ORDER BY id');
+  const getFeature = db.prepare('SELECT id FROM homestead_features WHERE id = ?');
+  const removeFeature = db.prepare('DELETE FROM homestead_features WHERE id = @id AND kind = @kind AND name = @name AND points = @points');
+  const deleteFeature = db.transaction((feature) =>
+    removeFeature.run(feature).changes > 0 || !getFeature.get(feature.id)
+  );
   const readFeatures = () => listFeatures.all().map((row) => ({ ...row, points: JSON.parse(row.points) }));
   const readLandmark = (id) => {
     const row = getLandmark.get(id);
@@ -148,14 +161,19 @@ function registerHomestead(app, db) {
   });
   api.get('/features', (_req, res) => res.json(readFeatures()));
   api.post('/features', (req, res) => {
-    const { kind, name, points } = req.body ?? {};
-    const minimum = kind === 'region' ? 3 : 2;
-    if (!featureKinds.has(kind) || !validName(name) || !Array.isArray(points) ||
-        points.length < minimum || points.length > 1000 || !points.every(coordinates) ||
-        new Set(points.map(({ x, y }) => `${x},${y}`)).size < minimum) {
+    const feature = normalizeFeature(req.body ?? {});
+    if (!feature) {
       return res.status(400).json({ error: 'Enter a name and add enough distinct points to the map.' });
     }
-    insertFeature.run(kind, name.trim(), JSON.stringify(points.map(({ x, y }) => ({ x, y }))));
+    insertFeature.run(feature.kind, feature.name, feature.points);
+    res.json(readFeatures());
+  });
+  api.delete('/features/:id', (req, res) => {
+    const feature = normalizeFeature(req.body ?? {});
+    if (!feature) return res.status(400).json({ error: 'Choose a saved shape to delete.' });
+    if (!deleteFeature({ id: req.params.id, ...feature })) {
+      return res.status(409).json({ error: 'This shape changed. Reload the map and try again.' });
+    }
     res.json(readFeatures());
   });
 }
